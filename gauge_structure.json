@@ -1,0 +1,64 @@
+[
+    {
+        "name": "consumer_group_1",
+        "topics": [
+            {
+                "name": "topic_1",
+                "partitions": [
+                    {
+                        "name": "partition_1",
+                        "lag": 7
+                    },
+                    {
+                        "name": "partition_3",
+                        "lag": 2
+                    }
+                ]
+            },
+            {
+                "name": "topic_4",
+                "partitions": [
+                    {
+                        "name": "partition_3",
+                        "lag": 7
+                    },
+                    {
+                        "name": "partition_4",
+                        "lag": 2
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "name": "consumer_group_2",
+        "topics": [
+            {
+                "name": "topic_2",
+                "partitions": [
+                    {
+                        "name": "partition_1",
+                        "lag": 7
+                    },
+                    {
+                        "name": "partition_3",
+                        "lag": 2
+                    }
+                ]
+            },
+            {
+                "name": "topic_3",
+                "partitions": [
+                    {
+                        "name": "partition_2",
+                        "lag": 7
+                    },
+                    {
+                        "name": "partition_4",
+                        "lag": 2
+                    }
+                ]
+            }
+        ]
+    }
+]
