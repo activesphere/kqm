@@ -17,8 +17,10 @@ const ConsumerOffsetTopic = "__consumer_offsets"
 type QueueSizeMonitor struct {
 	Client                    sarama.Client
 	wgConsumerMessages        sync.WaitGroup
-	ConsumerOffsetChannel     chan *PartitionOffset
-	BrokerOffsetChannel       chan *PartitionOffset
+	ConsumerOffsetStore       []*PartitionOffset
+	ConsumerOffsetStoreMutex  sync.Mutex
+	BrokerOffsetStore         []*PartitionOffset
+	BrokerOffsetStoreMutex  sync.Mutex
 }
 
 // NewQueueSizeMonitor : Returns a QueueSizeMonitor with an initialized client
@@ -28,6 +30,8 @@ func NewQueueSizeMonitor(brokers []string) (*QueueSizeMonitor, error) {
 	client, err := sarama.NewClient(brokers, config)
 	qsm := &QueueSizeMonitor{}
 	qsm.Client = client
+	qsm.ConsumerOffsetStore = make([]*PartitionOffset, 0)
+	qsm.BrokerOffsetStore = make([]*PartitionOffset, 0)
 	return qsm, err
 }
 
@@ -49,12 +53,11 @@ func (qsm *QueueSizeMonitor) GetConsumerOffsets() {
 	}
 
 	partitionsConsumers := make([]sarama.PartitionConsumer, len(partitions))
-	pOffsetChannel := make(chan *PartitionOffset)
+	log.Println("Number of Partition Consumers:", len(partitions))
 
 	getConsumerMessages := func(consumer sarama.PartitionConsumer) {
 		defer qsm.wgConsumerMessages.Done()
 		for message := range consumer.Messages() {
-			log.Println("Message received.", message)
 			qsm.wgConsumerMessages.Add(1)
 			go qsm.formatConsumerOffsetMessage(message)
 		}
@@ -73,6 +76,7 @@ func (qsm *QueueSizeMonitor) GetConsumerOffsets() {
 			log.Fatalln("Error occured while consuming partition.", err)
 		}
 		partitionsConsumers[index] = pConsumer
+		log.Println("Partition Consumer Index:", index)
 		qsm.wgConsumerMessages.Add(2)
 		go getConsumerMessages(pConsumer)
 		go getConsumerErrors(pConsumer)
@@ -84,11 +88,105 @@ func (qsm *QueueSizeMonitor) GetConsumerOffsets() {
 	}
 }
 
+// GetTopicsAndPartitions : Fetches topics and their corresponding partitions.
+func (qsm *QueueSizeMonitor) GetTopicsAndPartitions() map[string][]int32 {
+	defer qsm.ConsumerOffsetStoreMutex.Unlock()
+	qsm.ConsumerOffsetStoreMutex.Lock()
+	tpMap := make(map[string][]int32)
+	for _, cOffset := range qsm.ConsumerOffsetStore {
+		topic, partition := cOffset.Topic, cOffset.Partition
+		hasPartition := false
+		for _, ele := range tpMap[topic] {
+			if ele == partition {
+				hasPartition = true
+				break
+			}
+		}
+		if !hasPartition {
+			tpMap[topic] = append(tpMap[topic], partition)
+		}
+	}
+	return tpMap
+}
+
+// GetBrokerOffsets : Finds out the leader brokers for the partitions and 
+// gets the latest commited offsets.
+func (qsm *QueueSizeMonitor) GetBrokerOffsets() {
+	
+	tpMap := qsm.GetTopicsAndPartitions()
+	brokerOffsetRequests := make(map[int32]BrokerOffsetRequest)
+
+	for topic, partitions := range tpMap {
+		for _, partition := range partitions {
+			
+			leaderBroker, err := qsm.Client.Leader(topic, partition)
+			if err != nil {
+				log.Fatalln("Error occured while fetching leader broker.", err)
+				continue
+			}
+			leaderBrokerID := leaderBroker.ID()
+
+			if _, ok := brokerOffsetRequests[leaderBrokerID]; !ok {
+				brokerOffsetRequests[leaderBrokerID] = BrokerOffsetRequest{
+					Broker: leaderBroker,
+					OffsetRequest: &sarama.OffsetRequest{},
+				}
+			} else {
+				brokerOffsetRequests[leaderBrokerID].OffsetRequest.
+					AddBlock(topic, partition, sarama.OffsetNewest, 1)
+			}
+		}
+	}
+	
+	getOffsetResponse := func(request *BrokerOffsetRequest) {
+		response, err := request.Broker.GetAvailableOffsets(request.OffsetRequest)
+		if err != nil {
+			log.Fatalln("Error while getting available offsets from broker.", err)
+			request.Broker.Close()
+			return
+		}
+
+		for topic, partitionMap := range response.Blocks {
+			for partition, offsetResponseBlock := range partitionMap {
+				if offsetResponseBlock.Err != sarama.ErrNoError {
+					log.Fatalln("Error in offset response block.", 
+						offsetResponseBlock.Err.Error())
+					continue
+				}
+				brokerOffset := &PartitionOffset{
+					Topic: topic,
+					Partition: partition,
+					Offset: offsetResponseBlock.Offsets[0], // Version 0
+					Timestamp: offsetResponseBlock.Timestamp,
+				}
+				qsm.storeBrokerOffset(brokerOffset)
+			}
+		}
+	}
+
+	for _, brokerOffsetRequest := range brokerOffsetRequests {
+		go getOffsetResponse(&brokerOffsetRequest)
+	}
+}
+
+// Store newly received consumer offset.
+func (qsm *QueueSizeMonitor) storeConsumerOffset(newOffset *PartitionOffset) {
+	defer qsm.ConsumerOffsetStoreMutex.Unlock()
+	qsm.ConsumerOffsetStoreMutex.Lock()
+	qsm.ConsumerOffsetStore = append(qsm.ConsumerOffsetStore, newOffset)
+}
+
+// Store newly received broker offset.
+func (qsm *QueueSizeMonitor) storeBrokerOffset(newOffset *PartitionOffset) {
+	defer qsm.BrokerOffsetStoreMutex.Unlock()
+	qsm.BrokerOffsetStoreMutex.Lock()
+	qsm.BrokerOffsetStore = append(qsm.BrokerOffsetStore, newOffset)
+}
+
 // Burrow-based Consumer Offset Message parser function.
 func (qsm *QueueSizeMonitor) formatConsumerOffsetMessage(message *sarama.ConsumerMessage) {
-
+	
 	defer qsm.wgConsumerMessages.Done()
-	log.Println("Formatting Consumer Offset Message...")
 
 	readString := func(buf *bytes.Buffer) (string, error) {
 		var strlen uint16
@@ -170,6 +268,6 @@ func (qsm *QueueSizeMonitor) formatConsumerOffsetMessage(message *sarama.Consume
 		Offset:    int64(offset),
 	}
 
-	log.Println("Consumer Offset from formatted message:", partitionOffset.Offset)
-	qsm.ConsumerOffsetChannel <- partitionOffset
+	log.Println("Consumer Offset from message:", partitionOffset.Offset)
+	qsm.storeConsumerOffset(partitionOffset)
 }

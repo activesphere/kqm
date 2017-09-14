@@ -1,5 +1,9 @@
 package main
 
+import (
+	"github.com/Shopify/sarama"
+)
+
 // PartitionOffset : Defines a type for Partition Offset
 type PartitionOffset struct {
 	Topic               string
@@ -7,4 +11,10 @@ type PartitionOffset struct {
 	Offset              int64
 	Timestamp           int64
 	Group               string
+}
+
+// BrokerOffsetRequest : Aggregated type for Broker and OffsetRequest
+type BrokerOffsetRequest struct {
+	Broker          *sarama.Broker
+	OffsetRequest   *sarama.OffsetRequest
 }
