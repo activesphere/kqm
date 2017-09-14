@@ -18,3 +18,6 @@ type BrokerOffsetRequest struct {
 	Broker          *sarama.Broker
 	OffsetRequest   *sarama.OffsetRequest
 }
+
+// OffsetMap : Aggregated type for Group -> Topic -> Partition -> Offset.
+type OffsetMap map[string]map[string]map[int32]int64

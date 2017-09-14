@@ -19,8 +19,9 @@ type QueueSizeMonitor struct {
 	wgConsumerMessages        sync.WaitGroup
 	ConsumerOffsetStore       []*PartitionOffset
 	ConsumerOffsetStoreMutex  sync.Mutex
+	wgBrokerOffsetResponse    sync.WaitGroup
 	BrokerOffsetStore         []*PartitionOffset
-	BrokerOffsetStoreMutex  sync.Mutex
+	BrokerOffsetStoreMutex    sync.Mutex
 }
 
 // NewQueueSizeMonitor : Returns a QueueSizeMonitor with an initialized client
@@ -88,32 +89,11 @@ func (qsm *QueueSizeMonitor) GetConsumerOffsets() {
 	}
 }
 
-// GetTopicsAndPartitions : Fetches topics and their corresponding partitions.
-func (qsm *QueueSizeMonitor) GetTopicsAndPartitions() map[string][]int32 {
-	defer qsm.ConsumerOffsetStoreMutex.Unlock()
-	qsm.ConsumerOffsetStoreMutex.Lock()
-	tpMap := make(map[string][]int32)
-	for _, cOffset := range qsm.ConsumerOffsetStore {
-		topic, partition := cOffset.Topic, cOffset.Partition
-		hasPartition := false
-		for _, ele := range tpMap[topic] {
-			if ele == partition {
-				hasPartition = true
-				break
-			}
-		}
-		if !hasPartition {
-			tpMap[topic] = append(tpMap[topic], partition)
-		}
-	}
-	return tpMap
-}
-
 // GetBrokerOffsets : Finds out the leader brokers for the partitions and 
 // gets the latest commited offsets.
 func (qsm *QueueSizeMonitor) GetBrokerOffsets() {
 	
-	tpMap := qsm.GetTopicsAndPartitions()
+	tpMap := qsm.getTopicsAndPartitions(qsm.ConsumerOffsetStore, &qsm.ConsumerOffsetStoreMutex)
 	brokerOffsetRequests := make(map[int32]BrokerOffsetRequest)
 
 	for topic, partitions := range tpMap {
@@ -139,6 +119,7 @@ func (qsm *QueueSizeMonitor) GetBrokerOffsets() {
 	}
 	
 	getOffsetResponse := func(request *BrokerOffsetRequest) {
+		defer qsm.wgBrokerOffsetResponse.Done()
 		response, err := request.Broker.GetAvailableOffsets(request.OffsetRequest)
 		if err != nil {
 			log.Fatalln("Error while getting available offsets from broker.", err)
@@ -165,8 +146,60 @@ func (qsm *QueueSizeMonitor) GetBrokerOffsets() {
 	}
 
 	for _, brokerOffsetRequest := range brokerOffsetRequests {
+		qsm.wgBrokerOffsetResponse.Add(1)
 		go getOffsetResponse(&brokerOffsetRequest)
 	}
+
+	qsm.wgBrokerOffsetResponse.Wait()
+}
+
+// Fetches topics and their corresponding partitions.
+func (qsm *QueueSizeMonitor) getTopicsAndPartitions(offsetStore []*PartitionOffset, mutex *sync.Mutex) map[string][]int32 {
+	defer mutex.Unlock()
+	mutex.Lock()
+	tpMap := make(map[string][]int32)
+	for _, partitionOffset := range offsetStore {
+		topic, partition := partitionOffset.Topic, partitionOffset.Partition
+		hasPartition := false
+		for _, ele := range tpMap[topic] {
+			if ele == partition {
+				hasPartition = true
+				break
+			}
+		}
+		if !hasPartition {
+			tpMap[topic] = append(tpMap[topic], partition)
+		}
+	}
+	return tpMap
+}
+
+// Parses the Offset store and creates a group -> topic -> partition -> offset map.
+func (qsm *QueueSizeMonitor) getGroupTopicPartitionOffsetMap(offsetStore []*PartitionOffset,
+	mutex *sync.Mutex) OffsetMap {
+	defer mutex.Unlock()
+	mutex.Lock()
+	gtpMap := make(OffsetMap)
+	for _, partitionOffset := range offsetStore {
+		group, topic, partition, offset := partitionOffset.Group, partitionOffset.Topic,
+			partitionOffset.Partition, partitionOffset.Offset
+		gtpMap[group][topic][partition] = offset
+	}
+	return gtpMap
+}
+
+// Generates a lag map from Broker and Consumer offset maps.
+func (qsm *QueueSizeMonitor) generateLagMap(brokerOffsetMap OffsetMap, consumerOffsetMap OffsetMap) OffsetMap {
+	lagMap := make(OffsetMap)
+	for group, gbody := range consumerOffsetMap {
+		for topic, tbody := range gbody {
+			for partition, pbody := range tbody {
+				lagMap[group][topic][partition] = 
+					brokerOffsetMap[group][topic][partition] - consumerOffsetMap[group][topic][partition]
+			}
+		}
+	}
+	return lagMap
 }
 
 // Store newly received consumer offset.
