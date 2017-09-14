@@ -15,8 +15,10 @@ const ConsumerOffsetTopic = "__consumer_offsets"
 // QueueSizeMonitor : Defines the type for Kafka Queue Size 
 // Monitor implementation using Sarama.
 type QueueSizeMonitor struct {
-	Client              sarama.Client
-	wgConsumerMessages  sync.WaitGroup
+	Client                    sarama.Client
+	wgConsumerMessages        sync.WaitGroup
+	ConsumerOffsetChannel     chan *PartitionOffset
+	BrokerOffsetChannel       chan *PartitionOffset
 }
 
 // NewQueueSizeMonitor : Returns a QueueSizeMonitor with an initialized client
@@ -29,8 +31,9 @@ func NewQueueSizeMonitor(brokers []string) (*QueueSizeMonitor, error) {
 	return qsm, err
 }
 
-// GetConsumerPartitionOffsets : Appropriate description to be added.
-func (qsm *QueueSizeMonitor) GetConsumerPartitionOffsets() {
+// GetConsumerOffsets : Subcribes to Offset Topic and parses messages to 
+// obtains Consumer Offsets.
+func (qsm *QueueSizeMonitor) GetConsumerOffsets() {
 	log.Println("Started getting consumer partition offsets...")
 	
 	partitions, err := qsm.Client.Partitions(ConsumerOffsetTopic)
@@ -52,7 +55,8 @@ func (qsm *QueueSizeMonitor) GetConsumerPartitionOffsets() {
 		defer qsm.wgConsumerMessages.Done()
 		for message := range consumer.Messages() {
 			log.Println("Message received.", message)
-			go qsm.formatConsumerOffsetMessage(message, pOffsetChannel)
+			qsm.wgConsumerMessages.Add(1)
+			go qsm.formatConsumerOffsetMessage(message)
 		}
 	}
 
@@ -81,9 +85,9 @@ func (qsm *QueueSizeMonitor) GetConsumerPartitionOffsets() {
 }
 
 // Burrow-based Consumer Offset Message parser function.
-func (qsm *QueueSizeMonitor) formatConsumerOffsetMessage(
-	message *sarama.ConsumerMessage, pOffsetChannel chan *PartitionOffset) {
+func (qsm *QueueSizeMonitor) formatConsumerOffsetMessage(message *sarama.ConsumerMessage) {
 
+	defer qsm.wgConsumerMessages.Done()
 	log.Println("Formatting Consumer Offset Message...")
 
 	readString := func(buf *bytes.Buffer) (string, error) {
@@ -167,5 +171,5 @@ func (qsm *QueueSizeMonitor) formatConsumerOffsetMessage(
 	}
 
 	log.Println("Consumer Offset from formatted message:", partitionOffset.Offset)
-	pOffsetChannel <- partitionOffset
+	qsm.ConsumerOffsetChannel <- partitionOffset
 }
