@@ -20,3 +20,6 @@ bin/kafka-console-consumer.sh --zookeeper localhost:2181 --topic topic_1 --from-
 # List Non-Zookeeper (Old) Consumer Groups (including the ones created 
 # when a new consumer is created):
 bin/kafka-consumer-groups.sh --list --zookeeper localhost:2181
+
+# Subscribe and read from __consumer_offset Topic:
+bin/kafka-console-consumer.sh --topic __consumer_offsets --bootstrap-server localhost:9092 --formatter "kafka.coordinator.GroupMetadataManager\$OffsetsMessageFormatter" --from-beginning
