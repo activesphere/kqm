@@ -169,7 +169,6 @@ func (qsm *QueueSizeMonitor) GetBrokerOffsets() {
 		qsm.wgBrokerOffsetResponse.Add(1)
 		go getOffsetResponse(&brokerOffsetRequest)
 	}
-
 	qsm.wgBrokerOffsetResponse.Wait()
 }
 
@@ -207,7 +206,7 @@ func (qsm *QueueSizeMonitor) createGTPOffsetMap(offsetStore []*PartitionOffset,
 			gtpMap[group] = make(TPOffsetMap)
 		}
 		if _, ok := gtpMap[group][topic]; !ok {
-			gtpMap[group][topic] = make(map[int32]int64)
+			gtpMap[group][topic] = make(POffsetMap)
 		}
 		gtpMap[group][topic][partition] = offset
 	}
@@ -223,7 +222,7 @@ func (qsm *QueueSizeMonitor) createTPOffsetMap(offsetStore []*PartitionOffset,
 	for _, partitionOffset := range offsetStore {
 		topic, partition, offset := partitionOffset.Topic, partitionOffset.Partition, partitionOffset.Offset
 		if _, ok := tpMap[topic]; !ok {
-			tpMap[topic] = make(map[int32]int64)
+			tpMap[topic] = make(POffsetMap)
 		}
 		tpMap[topic][partition] = offset
 	}
@@ -235,11 +234,11 @@ func (qsm *QueueSizeMonitor) generateLagMap(brokerOffsetMap TPOffsetMap, consume
 	lagMap := make(GTPOffsetMap)
 	for group, gbody := range consumerOffsetMap {
 		if _, ok := lagMap[group]; !ok {
-			lagMap[group] = make(map[string]map[int32]int64)
+			lagMap[group] = make(TPOffsetMap)
 		}
 		for topic, tbody := range gbody {
 			if _, ok := lagMap[group][topic]; !ok {
-				lagMap[group][topic] = make(map[int32]int64)
+				lagMap[group][topic] = make(POffsetMap)
 			}
 			for partition := range tbody {
 				lagMap[group][topic][partition] = 
@@ -269,8 +268,7 @@ func (qsm *QueueSizeMonitor) storeBrokerOffset(newOffset *PartitionOffset) {
 }
 
 // Burrow-based Consumer Offset Message parser function.
-func (qsm *QueueSizeMonitor) formatConsumerOffsetMessage(message *sarama.ConsumerMessage) {
-	
+func (qsm *QueueSizeMonitor) formatConsumerOffsetMessage(message *sarama.ConsumerMessage) {	
 	defer qsm.wgConsumerMessages.Done()
 
 	readString := func(buf *bytes.Buffer) (string, error) {
