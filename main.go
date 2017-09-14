@@ -9,8 +9,5 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	_, err = qsm.GetConsumerPartitionOffsets()
-	if err != nil {
-		log.Fatalln(err)
-	}
+	qsm.Start()
 }

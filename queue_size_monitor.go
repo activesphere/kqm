@@ -1,6 +1,7 @@
 package main
 
 import (
+	"time"
 	"fmt"
 	"sync"
 	"bytes"
@@ -34,6 +35,25 @@ func NewQueueSizeMonitor(brokers []string) (*QueueSizeMonitor, error) {
 	qsm.ConsumerOffsetStore = make([]*PartitionOffset, 0)
 	qsm.BrokerOffsetStore = make([]*PartitionOffset, 0)
 	return qsm, err
+}
+
+// Start : Initiates the monitoring procedure, prints out lag results.
+func (qsm *QueueSizeMonitor) Start() {
+	go qsm.GetConsumerOffsets()
+	for {
+		qsm.GetBrokerOffsets()
+		brokerOffsetMap := qsm.createTPOffsetMap(qsm.BrokerOffsetStore, &qsm.BrokerOffsetStoreMutex)
+		consumerOffsetMap := qsm.createGTPOffsetMap(qsm.ConsumerOffsetStore, &qsm.ConsumerOffsetStoreMutex)
+		lagMap := qsm.generateLagMap(brokerOffsetMap, consumerOffsetMap)
+		for group, gbody := range lagMap {
+			for topic, tbody := range gbody {
+				for partition, pbody := range tbody {
+					log.Printf("%s -> %s -> %d :: Lag: %d", group, topic, partition, pbody)
+				}
+			}
+		}
+		time.Sleep(1 * time.Minute)
+	}
 }
 
 // GetConsumerOffsets : Subcribes to Offset Topic and parses messages to 
@@ -175,27 +195,59 @@ func (qsm *QueueSizeMonitor) getTopicsAndPartitions(offsetStore []*PartitionOffs
 }
 
 // Parses the Offset store and creates a group -> topic -> partition -> offset map.
-func (qsm *QueueSizeMonitor) getGroupTopicPartitionOffsetMap(offsetStore []*PartitionOffset,
-	mutex *sync.Mutex) OffsetMap {
+func (qsm *QueueSizeMonitor) createGTPOffsetMap(offsetStore []*PartitionOffset,
+	mutex *sync.Mutex) GTPOffsetMap {
 	defer mutex.Unlock()
 	mutex.Lock()
-	gtpMap := make(OffsetMap)
+	gtpMap := make(GTPOffsetMap)
 	for _, partitionOffset := range offsetStore {
 		group, topic, partition, offset := partitionOffset.Group, partitionOffset.Topic,
 			partitionOffset.Partition, partitionOffset.Offset
+		if _, ok := gtpMap[group]; !ok {
+			gtpMap[group] = make(TPOffsetMap)
+		}
+		if _, ok := gtpMap[group][topic]; !ok {
+			gtpMap[group][topic] = make(map[int32]int64)
+		}
 		gtpMap[group][topic][partition] = offset
 	}
 	return gtpMap
 }
 
+// Parses the Offset store and creates a topic -> partition -> offset map.
+func (qsm *QueueSizeMonitor) createTPOffsetMap(offsetStore []*PartitionOffset,
+	mutex *sync.Mutex) TPOffsetMap {
+	defer mutex.Unlock()
+	mutex.Lock()
+	tpMap := make(TPOffsetMap)
+	for _, partitionOffset := range offsetStore {
+		topic, partition, offset := partitionOffset.Topic, partitionOffset.Partition, partitionOffset.Offset
+		if _, ok := tpMap[topic]; !ok {
+			tpMap[topic] = make(map[int32]int64)
+		}
+		tpMap[topic][partition] = offset
+	}
+	return tpMap
+}
+
 // Generates a lag map from Broker and Consumer offset maps.
-func (qsm *QueueSizeMonitor) generateLagMap(brokerOffsetMap OffsetMap, consumerOffsetMap OffsetMap) OffsetMap {
-	lagMap := make(OffsetMap)
+func (qsm *QueueSizeMonitor) generateLagMap(brokerOffsetMap TPOffsetMap, consumerOffsetMap GTPOffsetMap) GTPOffsetMap {
+	lagMap := make(GTPOffsetMap)
 	for group, gbody := range consumerOffsetMap {
+		if _, ok := lagMap[group]; !ok {
+			lagMap[group] = make(map[string]map[int32]int64)
+		}
 		for topic, tbody := range gbody {
-			for partition, pbody := range tbody {
+			if _, ok := lagMap[group][topic]; !ok {
+				lagMap[group][topic] = make(map[int32]int64)
+			}
+			for partition := range tbody {
 				lagMap[group][topic][partition] = 
-					brokerOffsetMap[group][topic][partition] - consumerOffsetMap[group][topic][partition]
+					brokerOffsetMap[topic][partition] - consumerOffsetMap[group][topic][partition]
+				log.Println("\n+++++++++++++++++++++\nBroker Offset:", 
+					brokerOffsetMap[topic][partition], 
+					"\nConsumer Offset:", consumerOffsetMap[group][topic][partition],
+					"\n+++++++++++++++++++++")
 			}
 		}
 	}
