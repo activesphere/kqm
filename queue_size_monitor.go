@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"log"
 	"github.com/Shopify/sarama"
+	"github.com/quipo/statsd"
 )
 
 // ConsumerOffsetTopic : provides the topic name of the Offset Topic.
@@ -23,17 +24,33 @@ type QueueSizeMonitor struct {
 	wgBrokerOffsetResponse    sync.WaitGroup
 	BrokerOffsetStore         []*PartitionOffset
 	BrokerOffsetStoreMutex    sync.Mutex
+	StatsdClient              *statsd.StatsdClient
+	StatsdCfg                 StatsdConfig
 }
 
 // NewQueueSizeMonitor : Returns a QueueSizeMonitor with an initialized client
-// based on the comma-separated brokers (eg. "localhost:9092")
-func NewQueueSizeMonitor(brokers []string) (*QueueSizeMonitor, error) {
+// based on the comma-separated brokers (eg. "localhost:9092") along with 
+// the Statsd instance address (eg. "localhost:8125").
+func NewQueueSizeMonitor(brokers []string, statsdCfg StatsdConfig) (*QueueSizeMonitor, error) {
+	
 	config := sarama.NewConfig()
 	client, err := sarama.NewClient(brokers, config)
+	if err != nil {
+		return nil, err
+	}
+	
+	statsdClient := statsd.NewStatsdClient(statsdCfg.addr, statsdCfg.prefix)
+	err = statsdClient.CreateSocket()
+	if err != nil {
+		return nil, err
+	}
+	
 	qsm := &QueueSizeMonitor{}
 	qsm.Client = client
 	qsm.ConsumerOffsetStore = make([]*PartitionOffset, 0)
 	qsm.BrokerOffsetStore = make([]*PartitionOffset, 0)
+	qsm.StatsdClient = statsdClient
+	qsm.StatsdCfg = statsdCfg
 	return qsm, err
 }
 
@@ -48,7 +65,10 @@ func (qsm *QueueSizeMonitor) Start() {
 		for group, gbody := range lagMap {
 			for topic, tbody := range gbody {
 				for partition, pbody := range tbody {
-					log.Printf("%s -> %s -> %d :: Lag: %d", group, topic, partition, pbody)
+					stat := fmt.Sprintf("%s.%s.%s.partition{%d}", 
+						qsm.StatsdCfg.prefix, group, topic, partition)
+					go qsm.sendGaugeToStatsd(stat, pbody)
+					log.Printf("Gauge sent to Statsd: %s=%d", stat, pbody)
 				}
 			}
 		}
@@ -265,6 +285,18 @@ func (qsm *QueueSizeMonitor) storeBrokerOffset(newOffset *PartitionOffset) {
 	defer qsm.BrokerOffsetStoreMutex.Unlock()
 	qsm.BrokerOffsetStoreMutex.Lock()
 	qsm.BrokerOffsetStore = append(qsm.BrokerOffsetStore, newOffset)
+}
+
+// Sends the gauge to Statsd.
+func (qsm *QueueSizeMonitor) sendGaugeToStatsd(stat string, value int64) {
+	if qsm.StatsdClient == nil {
+		log.Fatalln("Statsd Client not initialized yet.")
+		return
+	}
+	err := qsm.StatsdClient.Gauge(stat, value)
+	if err != nil {
+		log.Fatalln("Error while sending gauge to statsd:", err)
+	}
 }
 
 // Burrow-based Consumer Offset Message parser function.

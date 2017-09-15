@@ -27,3 +27,9 @@ type TPOffsetMap map[string]POffsetMap
 
 // GTPOffsetMap : Aggregated type for Group -> Topic -> Partition -> Offset.
 type GTPOffsetMap map[string]TPOffsetMap
+
+// StatsdConfig : Type for Statsd Client Configuration.
+type StatsdConfig struct {
+	addr    string
+	prefix  string
+}
