@@ -65,7 +65,7 @@ func (qsm *QueueSizeMonitor) Start() {
 		for group, gbody := range lagMap {
 			for topic, tbody := range gbody {
 				for partition, pbody := range tbody {
-					stat := fmt.Sprintf("%s.%s.%s.partition{%d}", 
+					stat := fmt.Sprintf("%s.group.%s.%s.%d", 
 						qsm.StatsdCfg.prefix, group, topic, partition)
 					go qsm.sendGaugeToStatsd(stat, pbody)
 					log.Printf("Gauge sent to Statsd: %s=%d", stat, pbody)
