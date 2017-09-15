@@ -55,12 +55,12 @@ func NewQueueSizeMonitor(brokers []string, statsdCfg StatsdConfig) (*QueueSizeMo
 }
 
 // Start : Initiates the monitoring procedure, prints out lag results.
-func (qsm *QueueSizeMonitor) Start() {
+func (qsm *QueueSizeMonitor) Start(interval time.Duration) {
 	go qsm.GetConsumerOffsets()
 	for {
 		qsm.GetBrokerOffsets()
 		qsm.computeLag(qsm.BrokerOffsetStore, qsm.ConsumerOffsetStore)
-		time.Sleep(1 * time.Minute)
+		time.Sleep(interval)
 	}
 }
 
