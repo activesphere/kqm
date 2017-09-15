@@ -67,6 +67,10 @@ func (qsm *QueueSizeMonitor) Start() {
 				for partition, pbody := range tbody {
 					stat := fmt.Sprintf("%s.group.%s.%s.%d", 
 						qsm.StatsdCfg.prefix, group, topic, partition)
+					if pbody < 0 {
+						log.Printf("Negative Lag received for %s: %d", stat, pbody)
+						continue
+					}	
 					go qsm.sendGaugeToStatsd(stat, pbody)
 					log.Printf("Gauge sent to Statsd: %s=%d", stat, pbody)
 				}
@@ -117,7 +121,6 @@ func (qsm *QueueSizeMonitor) GetConsumerOffsets() {
 			log.Println("Error occured while consuming partition.", err)
 		}
 		partitionsConsumers[index] = pConsumer
-		log.Println("Partition Consumer Index:", index)
 		qsm.wgConsumerMessages.Add(2)
 		go getConsumerMessages(pConsumer)
 		go getConsumerErrors(pConsumer)
@@ -263,10 +266,12 @@ func (qsm *QueueSizeMonitor) generateLagMap(brokerOffsetMap TPOffsetMap, consume
 			for partition := range tbody {
 				lagMap[group][topic][partition] = 
 					brokerOffsetMap[topic][partition] - consumerOffsetMap[group][topic][partition]
-				log.Println("\n+++++++++++++++++++++\nBroker Offset:", 
-					brokerOffsetMap[topic][partition], 
-					"\nConsumer Offset:", consumerOffsetMap[group][topic][partition],
-					"\n+++++++++++++++++++++")
+				log.Printf("\n+++++++++(Topic: %s, Partn: %d)++++++++++++" +
+					"\nBroker Offset: %d" +
+					"\nConsumer Offset: %d" +
+					"\n++++++++++(Group: %s)+++++++++++", 
+					topic, partition, brokerOffsetMap[topic][partition], 
+					consumerOffsetMap[group][topic][partition],group)
 			}
 		}
 	}
@@ -383,6 +388,5 @@ func (qsm *QueueSizeMonitor) formatConsumerOffsetMessage(message *sarama.Consume
 		Offset:    int64(offset),
 	}
 
-	log.Println("Consumer Offset from message:", partitionOffset.Offset)
 	qsm.storeConsumerOffset(partitionOffset)
 }
