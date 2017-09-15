@@ -19,10 +19,10 @@ const ConsumerOffsetTopic = "__consumer_offsets"
 type QueueSizeMonitor struct {
 	Client                    sarama.Client
 	wgConsumerMessages        sync.WaitGroup
-	ConsumerOffsetStore       []*PartitionOffset
+	ConsumerOffsetStore       GTPOffsetMap
 	ConsumerOffsetStoreMutex  sync.Mutex
 	wgBrokerOffsetResponse    sync.WaitGroup
-	BrokerOffsetStore         []*PartitionOffset
+	BrokerOffsetStore         TPOffsetMap
 	BrokerOffsetStoreMutex    sync.Mutex
 	StatsdClient              *statsd.StatsdClient
 	StatsdCfg                 StatsdConfig
@@ -47,8 +47,8 @@ func NewQueueSizeMonitor(brokers []string, statsdCfg StatsdConfig) (*QueueSizeMo
 	
 	qsm := &QueueSizeMonitor{}
 	qsm.Client = client
-	qsm.ConsumerOffsetStore = make([]*PartitionOffset, 0)
-	qsm.BrokerOffsetStore = make([]*PartitionOffset, 0)
+	qsm.ConsumerOffsetStore = make(GTPOffsetMap)
+	qsm.BrokerOffsetStore = make(TPOffsetMap)
 	qsm.StatsdClient = statsdClient
 	qsm.StatsdCfg = statsdCfg
 	return qsm, err
@@ -59,9 +59,7 @@ func (qsm *QueueSizeMonitor) Start() {
 	go qsm.GetConsumerOffsets()
 	for {
 		qsm.GetBrokerOffsets()
-		brokerOffsetMap := qsm.createTPOffsetMap(qsm.BrokerOffsetStore, &qsm.BrokerOffsetStoreMutex)
-		consumerOffsetMap := qsm.createGTPOffsetMap(qsm.ConsumerOffsetStore, &qsm.ConsumerOffsetStoreMutex)
-		lagMap := qsm.generateLagMap(brokerOffsetMap, consumerOffsetMap)
+		lagMap := qsm.generateLagMap(qsm.BrokerOffsetStore, qsm.ConsumerOffsetStore)
 		for group, gbody := range lagMap {
 			for topic, tbody := range gbody {
 				for partition, pbody := range tbody {
@@ -196,44 +194,18 @@ func (qsm *QueueSizeMonitor) GetBrokerOffsets() {
 }
 
 // Fetches topics and their corresponding partitions.
-func (qsm *QueueSizeMonitor) getTopicsAndPartitions(offsetStore []*PartitionOffset, mutex *sync.Mutex) map[string][]int32 {
+func (qsm *QueueSizeMonitor) getTopicsAndPartitions(offsetStore GTPOffsetMap, mutex *sync.Mutex) map[string][]int32 {
 	defer mutex.Unlock()
 	mutex.Lock()
 	tpMap := make(map[string][]int32)
-	for _, partitionOffset := range offsetStore {
-		topic, partition := partitionOffset.Topic, partitionOffset.Partition
-		hasPartition := false
-		for _, ele := range tpMap[topic] {
-			if ele == partition {
-				hasPartition = true
-				break
+	for _, gbody := range offsetStore {
+		for topic, tbody := range gbody {
+			for partition := range tbody {
+				tpMap[topic] = append(tpMap[topic], partition)
 			}
-		}
-		if !hasPartition {
-			tpMap[topic] = append(tpMap[topic], partition)
 		}
 	}
 	return tpMap
-}
-
-// Parses the Offset store and creates a group -> topic -> partition -> offset map.
-func (qsm *QueueSizeMonitor) createGTPOffsetMap(offsetStore []*PartitionOffset,
-	mutex *sync.Mutex) GTPOffsetMap {
-	defer mutex.Unlock()
-	mutex.Lock()
-	gtpMap := make(GTPOffsetMap)
-	for _, partitionOffset := range offsetStore {
-		group, topic, partition, offset := partitionOffset.Group, partitionOffset.Topic,
-			partitionOffset.Partition, partitionOffset.Offset
-		if _, ok := gtpMap[group]; !ok {
-			gtpMap[group] = make(TPOffsetMap)
-		}
-		if _, ok := gtpMap[group][topic]; !ok {
-			gtpMap[group][topic] = make(POffsetMap)
-		}
-		gtpMap[group][topic][partition] = offset
-	}
-	return gtpMap
 }
 
 // Parses the Offset store and creates a topic -> partition -> offset map.
@@ -282,14 +254,26 @@ func (qsm *QueueSizeMonitor) generateLagMap(brokerOffsetMap TPOffsetMap, consume
 func (qsm *QueueSizeMonitor) storeConsumerOffset(newOffset *PartitionOffset) {
 	defer qsm.ConsumerOffsetStoreMutex.Unlock()
 	qsm.ConsumerOffsetStoreMutex.Lock()
-	qsm.ConsumerOffsetStore = append(qsm.ConsumerOffsetStore, newOffset)
+	group, topic, partition, offset := newOffset.Group, newOffset.Topic,
+		newOffset.Partition, newOffset.Offset
+	if _, ok := qsm.ConsumerOffsetStore[group]; !ok {
+		qsm.ConsumerOffsetStore[group] = make(TPOffsetMap)
+	}
+	if _, ok := qsm.ConsumerOffsetStore[group][topic]; !ok {
+		qsm.ConsumerOffsetStore[group][topic] = make(POffsetMap)
+	}
+	qsm.ConsumerOffsetStore[group][topic][partition] = offset
 }
 
 // Store newly received broker offset.
 func (qsm *QueueSizeMonitor) storeBrokerOffset(newOffset *PartitionOffset) {
 	defer qsm.BrokerOffsetStoreMutex.Unlock()
 	qsm.BrokerOffsetStoreMutex.Lock()
-	qsm.BrokerOffsetStore = append(qsm.BrokerOffsetStore, newOffset)
+	topic, partition, offset := newOffset.Topic, newOffset.Partition, newOffset.Offset
+	if _, ok := qsm.BrokerOffsetStore[topic]; !ok {
+		qsm.BrokerOffsetStore[topic] = make(POffsetMap)
+	}
+	qsm.BrokerOffsetStore[topic][partition] = offset
 }
 
 // Sends the gauge to Statsd.
