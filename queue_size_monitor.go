@@ -59,21 +59,7 @@ func (qsm *QueueSizeMonitor) Start() {
 	go qsm.GetConsumerOffsets()
 	for {
 		qsm.GetBrokerOffsets()
-		lagMap := qsm.generateLagMap(qsm.BrokerOffsetStore, qsm.ConsumerOffsetStore)
-		for group, gbody := range lagMap {
-			for topic, tbody := range gbody {
-				for partition, pbody := range tbody {
-					stat := fmt.Sprintf("%s.group.%s.%s.%d", 
-						qsm.StatsdCfg.prefix, group, topic, partition)
-					if pbody < 0 {
-						log.Printf("Negative Lag received for %s: %d", stat, pbody)
-						continue
-					}	
-					go qsm.sendGaugeToStatsd(stat, pbody)
-					log.Printf("Gauge sent to Statsd: %s=%d", stat, pbody)
-				}
-			}
-		}
+		qsm.computeLag(qsm.BrokerOffsetStore, qsm.ConsumerOffsetStore)
 		time.Sleep(1 * time.Minute)
 	}
 }
@@ -224,30 +210,31 @@ func (qsm *QueueSizeMonitor) createTPOffsetMap(offsetStore []*PartitionOffset,
 	return tpMap
 }
 
-// Generates a lag map from Broker and Consumer offset maps.
-func (qsm *QueueSizeMonitor) generateLagMap(brokerOffsetMap TPOffsetMap, consumerOffsetMap GTPOffsetMap) GTPOffsetMap {
-	lagMap := make(GTPOffsetMap)
+// Computes the lag and sends the data as a gauge to Statsd.
+func (qsm *QueueSizeMonitor) computeLag(brokerOffsetMap TPOffsetMap, consumerOffsetMap GTPOffsetMap) {
 	for group, gbody := range consumerOffsetMap {
-		if _, ok := lagMap[group]; !ok {
-			lagMap[group] = make(TPOffsetMap)
-		}
 		for topic, tbody := range gbody {
-			if _, ok := lagMap[group][topic]; !ok {
-				lagMap[group][topic] = make(POffsetMap)
-			}
 			for partition := range tbody {
-				lagMap[group][topic][partition] = 
-					brokerOffsetMap[topic][partition] - consumerOffsetMap[group][topic][partition]
+				lag := brokerOffsetMap[topic][partition] - consumerOffsetMap[group][topic][partition]
+				stat := fmt.Sprintf("%s.group.%s.%s.%d", 
+					qsm.StatsdCfg.prefix, group, topic, partition)
+				if lag < 0 {
+					log.Printf("Negative Lag received for %s: %d", stat, lag)
+					continue
+				}
+				go qsm.sendGaugeToStatsd(stat, lag)
+				log.Printf("Gauge sent to Statsd: %s=%d", stat, lag)
+				
 				log.Printf("\n+++++++++(Topic: %s, Partn: %d)++++++++++++" +
 					"\nBroker Offset: %d" +
 					"\nConsumer Offset: %d" +
+					"\nLag: %d" +
 					"\n++++++++++(Group: %s)+++++++++++", 
 					topic, partition, brokerOffsetMap[topic][partition], 
-					consumerOffsetMap[group][topic][partition],group)
+					consumerOffsetMap[group][topic][partition], lag, group)
 			}
 		}
 	}
-	return lagMap
 }
 
 // Store newly received consumer offset.
