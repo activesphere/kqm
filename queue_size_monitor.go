@@ -223,8 +223,6 @@ func (qsm *QueueSizeMonitor) computeLag(brokerOffsetMap TPOffsetMap, consumerOff
 					continue
 				}
 				go qsm.sendGaugeToStatsd(stat, lag)
-				log.Printf("Gauge sent to Statsd: %s=%d", stat, lag)
-				
 				log.Printf("\n+++++++++(Topic: %s, Partn: %d)++++++++++++" +
 					"\nBroker Offset: %d" +
 					"\nConsumer Offset: %d" +
@@ -273,6 +271,7 @@ func (qsm *QueueSizeMonitor) sendGaugeToStatsd(stat string, value int64) {
 	if err != nil {
 		log.Println("Error while sending gauge to statsd:", err)
 	}
+	log.Printf("Gauge sent to Statsd: %s=%d", stat, value)
 }
 
 // Burrow-based Consumer Offset Message parser function.
