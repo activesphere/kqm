@@ -83,13 +83,13 @@ func (qsm *QueueSizeMonitor) GetConsumerOffsets() {
 	
 	partitions, err := qsm.Client.Partitions(ConsumerOffsetTopic)
 	if err != nil {
-		log.Fatalln("Error occured while getting client partitions.", err)
+		log.Println("Error occured while getting client partitions.", err)
 		return
 	}
 
 	consumer, err := sarama.NewConsumerFromClient(qsm.Client)
 	if err != nil {
-		log.Fatalln("Error occured while creating new client consumer.", err)
+		log.Println("Error occured while creating new client consumer.", err)
 		return
 	}
 
@@ -107,14 +107,14 @@ func (qsm *QueueSizeMonitor) GetConsumerOffsets() {
 	getConsumerErrors := func(consumer sarama.PartitionConsumer) {
 		defer qsm.wgConsumerMessages.Done()
 		for err := range consumer.Errors() {
-			log.Fatalln("Error occured in Partition Consumer:", err)
+			log.Println("Error occured in Partition Consumer:", err)
 		}
 	}
 
 	for index, partition := range partitions {
 		pConsumer, err := consumer.ConsumePartition(ConsumerOffsetTopic, partition, sarama.OffsetNewest)
 		if err != nil {
-			log.Fatalln("Error occured while consuming partition.", err)
+			log.Println("Error occured while consuming partition.", err)
 		}
 		partitionsConsumers[index] = pConsumer
 		log.Println("Partition Consumer Index:", index)
@@ -141,7 +141,7 @@ func (qsm *QueueSizeMonitor) GetBrokerOffsets() {
 			
 			leaderBroker, err := qsm.Client.Leader(topic, partition)
 			if err != nil {
-				log.Fatalln("Error occured while fetching leader broker.", err)
+				log.Println("Error occured while fetching leader broker.", err)
 				continue
 			}
 			leaderBrokerID := leaderBroker.ID()
@@ -162,7 +162,7 @@ func (qsm *QueueSizeMonitor) GetBrokerOffsets() {
 		defer qsm.wgBrokerOffsetResponse.Done()
 		response, err := request.Broker.GetAvailableOffsets(request.OffsetRequest)
 		if err != nil {
-			log.Fatalln("Error while getting available offsets from broker.", err)
+			log.Println("Error while getting available offsets from broker.", err)
 			request.Broker.Close()
 			return
 		}
@@ -170,7 +170,7 @@ func (qsm *QueueSizeMonitor) GetBrokerOffsets() {
 		for topic, partitionMap := range response.Blocks {
 			for partition, offsetResponseBlock := range partitionMap {
 				if offsetResponseBlock.Err != sarama.ErrNoError {
-					log.Fatalln("Error in offset response block.", 
+					log.Println("Error in offset response block.", 
 						offsetResponseBlock.Err.Error())
 					continue
 				}
@@ -290,12 +290,12 @@ func (qsm *QueueSizeMonitor) storeBrokerOffset(newOffset *PartitionOffset) {
 // Sends the gauge to Statsd.
 func (qsm *QueueSizeMonitor) sendGaugeToStatsd(stat string, value int64) {
 	if qsm.StatsdClient == nil {
-		log.Fatalln("Statsd Client not initialized yet.")
+		log.Println("Statsd Client not initialized yet.")
 		return
 	}
 	err := qsm.StatsdClient.Gauge(stat, value)
 	if err != nil {
-		log.Fatalln("Error while sending gauge to statsd:", err)
+		log.Println("Error while sending gauge to statsd:", err)
 	}
 }
 
@@ -318,7 +318,7 @@ func (qsm *QueueSizeMonitor) formatConsumerOffsetMessage(message *sarama.Consume
 	}
 
 	logError := func(err error) {
-		log.Fatalln("Error while parsing message.", err)
+		log.Println("Error while parsing message.", err)
 	}
 
 	var keyver, valver uint16
