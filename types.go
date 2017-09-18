@@ -1,8 +1,14 @@
 package main
 
 import (
+	"time"
 	"github.com/Shopify/sarama"
 )
+
+// Monitor : Interface for monitor types.
+type Monitor interface {
+	Start(readInterval time.Duration, retryInterval time.Duration)
+}
 
 // PartitionOffset : Defines a type for Partition Offset
 type PartitionOffset struct {
