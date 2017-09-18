@@ -146,10 +146,14 @@ func (qsm *QueueSizeMonitor) GetConsumerOffsets() {
 	}
 
 	for index, partition := range partitions {
-		pConsumer, err := consumer.ConsumePartition(ConsumerOffsetTopic, partition, sarama.OffsetNewest)
+		result, err := RetryOnFailure(qsm.Config, "Consume_Partition", func() (interface{}, error) {
+			return consumer.ConsumePartition(ConsumerOffsetTopic, partition, sarama.OffsetNewest)
+		})
 		if err != nil {
 			log.Println("Error occured while consuming partition.", err)
+			continue
 		}
+		pConsumer := result.(sarama.PartitionConsumer)
 		partitionsConsumers[index] = pConsumer
 		qsm.wgConsumerMessages.Add(2)
 		go getConsumerMessages(pConsumer)

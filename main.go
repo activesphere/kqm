@@ -14,7 +14,7 @@ func main() {
 			Prefix: "kqsm_prefix",
 		},
 		ReadInterval: 2 * time.Minute,
-		RetryInterval: 30 * time.Second,
+		RetryInterval: 5 * time.Second,
 		MaxRetries: 10,
 	}
 	Start(cfg)
