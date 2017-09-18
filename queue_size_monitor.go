@@ -31,14 +31,13 @@ type QueueSizeMonitor struct {
 // RetryOnFailure : As the name suggests, it retries the func passed an argument
 // based on the Max Retries and Retry Interval specified in the config.
 func RetryOnFailure(cfg *QSMConfig, title string, 
-	fn func() (interface{}, error)) (interface{}, error) {
+	fn func() error) error {
 	var (
 		count  int
-		result interface{}
 		err    error
 	)
 	for count := 1; count <= cfg.MaxRetries; count++ {
-		result, err = fn()
+		err = fn()
 		if err != nil {
 			log.Println("Retrying due to error:", title)
 			time.Sleep(cfg.RetryInterval)
@@ -48,10 +47,10 @@ func RetryOnFailure(cfg *QSMConfig, title string,
 	}
 	if count > cfg.MaxRetries {
 		log.Println("Max Retries Exceeded: ", title)
-		return result, err
+		return err
 	}
 	log.Println("Succeeded: ", title)
-	return result, nil
+	return nil
 }
 
 // Start : Initiates the monitoring procedure, prints out the lag results
@@ -64,26 +63,24 @@ func Start(cfg *QSMConfig) {
 	}
 
 	go func() {
-		RetryOnFailure(cfg, "CONSUMER_OFFSETS", func() (interface{}, error) {
-			return nil, qsm.GetConsumerOffsets()
+		RetryOnFailure(cfg, "CONSUMER_OFFSETS", func() error {
+			return qsm.GetConsumerOffsets()
 		})
 	}()
 
-	reportLag := func() (interface{}, error) {
-		err := qsm.GetBrokerOffsets()
-		if err != nil {
-			return nil, err
-		}
-		err = qsm.computeLag(qsm.BrokerOffsetStore, qsm.ConsumerOffsetStore)
-		if err != nil {
-			return nil, err
-		}
-		time.Sleep(cfg.ReadInterval)
-		return nil, nil
-	}
-	
 	for {
-		RetryOnFailure(cfg, "REPORT_LAG", reportLag)
+		RetryOnFailure(cfg, "REPORT_LAG", func() error {
+			err := qsm.GetBrokerOffsets()
+			if err != nil {
+				return err
+			}
+			err = qsm.computeLag(qsm.BrokerOffsetStore, qsm.ConsumerOffsetStore)
+			if err != nil {
+				return err
+			}
+			time.Sleep(cfg.ReadInterval)
+			return nil
+		})
 	}
 }
 
