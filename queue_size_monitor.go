@@ -57,22 +57,33 @@ func RetryOnFailure(cfg *QSMConfig, title string,
 // Start : Initiates the monitoring procedure, prints out the lag results
 // and sends the results to Statsd.
 func Start(cfg *QSMConfig) {
-	result, err := RetryOnFailure(cfg, "Create_QSM", func() (interface{}, error) {
-		return NewQueueSizeMonitor(cfg)
-	})
+	qsm, err := NewQueueSizeMonitor(cfg)
 	if err != nil {
 		log.Println("Error while creating QSM instance.", err)
 		return
 	}
-	qsm := result.(*QueueSizeMonitor)
 
-	go qsm.GetConsumerOffsets()
-	for {
-		qsm.GetBrokerOffsets()
-		RetryOnFailure(cfg, "Compute_Lag", func() (interface{}, error) {
-			return nil, qsm.computeLag(qsm.BrokerOffsetStore, qsm.ConsumerOffsetStore)
+	go func() {
+		RetryOnFailure(cfg, "CONSUMER_OFFSETS", func() (interface{}, error) {
+			return nil, qsm.GetConsumerOffsets()
 		})
+	}()
+
+	reportLag := func() (interface{}, error) {
+		err := qsm.GetBrokerOffsets()
+		if err != nil {
+			return nil, err
+		}
+		err = qsm.computeLag(qsm.BrokerOffsetStore, qsm.ConsumerOffsetStore)
+		if err != nil {
+			return nil, err
+		}
 		time.Sleep(cfg.ReadInterval)
+		return nil, nil
+	}
+	
+	for {
+		RetryOnFailure(cfg, "REPORT_LAG", reportLag)
 	}
 }
 
@@ -104,71 +115,124 @@ func NewQueueSizeMonitor(cfg *QSMConfig) (*QueueSizeMonitor, error) {
 
 // GetConsumerOffsets : Subcribes to Offset Topic and parses messages to 
 // obtains Consumer Offsets.
-func (qsm *QueueSizeMonitor) GetConsumerOffsets() {
+func (qsm *QueueSizeMonitor) GetConsumerOffsets() error {
 	log.Println("Started getting consumer partition offsets...")
 	
-	result, err := RetryOnFailure(qsm.Config, "Fetch_Client_Partitions", 
-		func() (interface{}, error) {
-		return qsm.Client.Partitions(ConsumerOffsetTopic)
-	})
+	partitions, err := qsm.Client.Partitions(ConsumerOffsetTopic)
 	if err != nil {
 		log.Println("Error occured while getting client partitions.", err)
-		return
+		return err
 	}
-	partitions := result.([]int32)
 
-	result, err = RetryOnFailure(qsm.Config, "Fetch_Client_Consumer", 
-		func() (interface{}, error) {
-		return sarama.NewConsumerFromClient(qsm.Client)
-	})
+	consumer, err := sarama.NewConsumerFromClient(qsm.Client)
 	if err != nil {
 		log.Println("Error occured while creating new client consumer.", err)
-		return
+		return err
 	}
-	consumer := result.(sarama.Consumer)
 
-	partitionsConsumers := make([]sarama.PartitionConsumer, len(partitions))
 	log.Println("Number of Partition Consumers:", len(partitions))
 
-	getConsumerMessages := func(consumer sarama.PartitionConsumer) {
-		defer qsm.wgConsumerMessages.Done()
-		for message := range consumer.Messages() {
-			qsm.wgConsumerMessages.Add(1)
-			go qsm.formatConsumerOffsetMessage(message)
+	// Burrow-based Consumer Offset Message parser function.
+	formatAndStoreMessage := func (message *sarama.ConsumerMessage) error {	
+		readString := func(buf *bytes.Buffer) (string, error) {
+			var strlen uint16
+			err := binary.Read(buf, binary.BigEndian, &strlen)
+			if err != nil {
+				return "", err
+			}
+			strbytes := make([]byte, strlen)
+			n, err := buf.Read(strbytes)
+			if (err != nil) || (n != int(strlen)) {
+				return "", fmt.Errorf("string underflow")
+			}
+			return string(strbytes), nil
 		}
+
+		var (
+			keyver, valver uint16
+			group, topic string
+			partition uint32
+			offset, timestamp uint64
+		)
+
+		buf := bytes.NewBuffer(message.Key)
+		err := binary.Read(buf, binary.BigEndian, &keyver)
+		switch keyver {
+		case 0, 1:
+			group, err = readString(buf)
+			if err != nil {
+				return err
+			}
+			topic, err = readString(buf)
+			if err != nil {
+				return err
+			}
+			err = binary.Read(buf, binary.BigEndian, &partition)
+			if err != nil {
+				return err
+			}
+		case 2:
+			return err
+		default:
+			return err
+		}
+
+		buf = bytes.NewBuffer(message.Value)
+		err = binary.Read(buf, binary.BigEndian, &valver)
+		if (err != nil) || ((valver != 0) && (valver != 1)) {
+			return err
+		}
+		err = binary.Read(buf, binary.BigEndian, &offset)
+		if err != nil {
+			return err
+		}
+		_, err = readString(buf)
+		if err != nil {
+			return err
+		}
+		err = binary.Read(buf, binary.BigEndian, &timestamp)
+		if err != nil {
+			return err
+		}
+
+		partitionOffset := &PartitionOffset{
+			Topic:     topic,
+			Partition: int32(partition),
+			Group:     group,
+			Timestamp: int64(timestamp),
+			Offset:    int64(offset),
+		}
+
+		qsm.storeConsumerOffset(partitionOffset)
+		log.Println("Consumer Offset: ", partitionOffset.Offset)
+		return nil
 	}
 
-	getConsumerErrors := func(consumer sarama.PartitionConsumer) {
-		defer qsm.wgConsumerMessages.Done()
-		for err := range consumer.Errors() {
-			log.Println("Error occured in Partition Consumer:", err)
-		}
-	}
-
-	for index, partition := range partitions {
-		result, err := RetryOnFailure(qsm.Config, "Consume_Partition", func() (interface{}, error) {
-			return consumer.ConsumePartition(ConsumerOffsetTopic, partition, sarama.OffsetNewest)
-		})
+	storeMessages := func(partition int32) error {
+		pConsumer, err := consumer.ConsumePartition(ConsumerOffsetTopic, partition, sarama.OffsetNewest)
 		if err != nil {
 			log.Println("Error occured while consuming partition.", err)
-			continue
+			pConsumer.AsyncClose()
+			return err
 		}
-		pConsumer := result.(sarama.PartitionConsumer)
-		partitionsConsumers[index] = pConsumer
-		qsm.wgConsumerMessages.Add(2)
-		go getConsumerMessages(pConsumer)
-		go getConsumerErrors(pConsumer)
+		for message := range pConsumer.Messages() {
+			go formatAndStoreMessage(message)
+		}
+		return nil
 	}
 
-	qsm.wgConsumerMessages.Wait()
-	for _, pConsumer := range partitionsConsumers {
-		pConsumer.AsyncClose()
+	for _, partition := range partitions {
+		err := storeMessages(partition)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 // GetBrokerOffsets : Finds out the leader brokers for the partitions and 
 // gets the latest commited offsets.
-func (qsm *QueueSizeMonitor) GetBrokerOffsets() {
+func (qsm *QueueSizeMonitor) GetBrokerOffsets() error {
 	
 	tpMap := qsm.getTopicsAndPartitions(qsm.ConsumerOffsetStore, &qsm.ConsumerOffsetStoreMutex)
 	brokerOffsetRequests := make(map[int32]BrokerOffsetRequest)
@@ -178,7 +242,7 @@ func (qsm *QueueSizeMonitor) GetBrokerOffsets() {
 			leaderBroker, err := qsm.Client.Leader(topic, partition)
 			if err != nil {
 				log.Println("Error occured while fetching leader broker.", err)
-				continue
+				return err
 			}
 			leaderBrokerID := leaderBroker.ID()
 
@@ -194,13 +258,11 @@ func (qsm *QueueSizeMonitor) GetBrokerOffsets() {
 		}
 	}
 	
-	getOffsetResponse := func(request *BrokerOffsetRequest) {
-		defer qsm.wgBrokerOffsetResponse.Done()
+	storeResponse := func(request *BrokerOffsetRequest) error {
 		response, err := request.Broker.GetAvailableOffsets(request.OffsetRequest)
 		if err != nil {
 			log.Println("Error while getting available offsets from broker.", err)
-			request.Broker.Close()
-			return
+			return err
 		}
 
 		for topic, partitionMap := range response.Blocks {
@@ -219,13 +281,16 @@ func (qsm *QueueSizeMonitor) GetBrokerOffsets() {
 				qsm.storeBrokerOffset(brokerOffset)
 			}
 		}
+		return nil
 	}
 
 	for _, brokerOffsetRequest := range brokerOffsetRequests {
-		qsm.wgBrokerOffsetResponse.Add(1)
-		go getOffsetResponse(&brokerOffsetRequest)
+		err := storeResponse(&brokerOffsetRequest)
+		if err != nil {
+			return err
+		}
 	}
-	qsm.wgBrokerOffsetResponse.Wait()
+	return nil
 }
 
 // Fetches topics and their corresponding partitions.
@@ -314,90 +379,3 @@ func (qsm *QueueSizeMonitor) sendGaugeToStatsd(stat string, value int64) error {
 	return nil
 }
 
-// Burrow-based Consumer Offset Message parser function.
-func (qsm *QueueSizeMonitor) formatConsumerOffsetMessage(message *sarama.ConsumerMessage) {	
-	defer qsm.wgConsumerMessages.Done()
-
-	readString := func(buf *bytes.Buffer) (string, error) {
-		var strlen uint16
-		err := binary.Read(buf, binary.BigEndian, &strlen)
-		if err != nil {
-			return "", err
-		}
-		strbytes := make([]byte, strlen)
-		n, err := buf.Read(strbytes)
-		if (err != nil) || (n != int(strlen)) {
-			return "", fmt.Errorf("string underflow")
-		}
-		return string(strbytes), nil
-	}
-
-	logError := func(err error) {
-		log.Println("Error while parsing message.", err)
-	}
-
-	var keyver, valver uint16
-	var group, topic string
-	var partition uint32
-	var offset, timestamp uint64
-
-	buf := bytes.NewBuffer(message.Key)
-	err := binary.Read(buf, binary.BigEndian, &keyver)
-	switch keyver {
-	case 0, 1:
-		group, err = readString(buf)
-		if err != nil {
-			logError(err)
-			return
-		}
-		topic, err = readString(buf)
-		if err != nil {
-			logError(err)
-			return
-		}
-		err = binary.Read(buf, binary.BigEndian, &partition)
-		if err != nil {
-			logError(err)
-			return
-		}
-	case 2:
-		logError(err)
-		return
-	default:
-		logError(err)
-		return
-	}
-
-	buf = bytes.NewBuffer(message.Value)
-	err = binary.Read(buf, binary.BigEndian, &valver)
-	if (err != nil) || ((valver != 0) && (valver != 1)) {
-		logError(err)
-		return
-	}
-	err = binary.Read(buf, binary.BigEndian, &offset)
-	if err != nil {
-		logError(err)
-		return
-	}
-	_, err = readString(buf)
-	if err != nil {
-		logError(err)
-		return
-	}
-	err = binary.Read(buf, binary.BigEndian, &timestamp)
-	if err != nil {
-		logError(err)
-		return
-	}
-
-	partitionOffset := &PartitionOffset{
-		Topic:     topic,
-		Partition: int32(partition),
-		Group:     group,
-		Timestamp: int64(timestamp),
-		Offset:    int64(offset),
-	}
-
-	qsm.storeConsumerOffset(partitionOffset)
-	log.Println("Consumer Offset: ", partitionOffset.Offset)
-}
