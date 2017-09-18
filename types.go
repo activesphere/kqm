@@ -34,8 +34,22 @@ type TPOffsetMap map[string]POffsetMap
 // GTPOffsetMap : Aggregated type for Group -> Topic -> Partition -> Offset.
 type GTPOffsetMap map[string]TPOffsetMap
 
+// KafkaConfig : Type for Kafka Broker Configuration.
+type KafkaConfig struct {
+	Brokers []string
+}
+
 // StatsdConfig : Type for Statsd Client Configuration.
 type StatsdConfig struct {
-	addr    string
-	prefix  string
+	Addr    string
+	Prefix  string
+}
+
+// QSMConfig : Aggregated type for all configuration required for KQSM.
+type QSMConfig struct {
+	KafkaCfg           KafkaConfig
+	StatsdCfg          StatsdConfig
+	ReadInterval       time.Duration
+	RetryInterval      time.Duration
+	MaxRetries         int
 }

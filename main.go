@@ -2,14 +2,20 @@ package main
 
 import (
 	"time"
-	"log"
 )
 
 func main() {
-	statsdCfg := StatsdConfig{addr: "localhost:8125", prefix: "kqsm_prefix",}
-	qsm, err := NewQueueSizeMonitor([]string{"localhost:9092"}, statsdCfg)
-	if err != nil {
-		log.Println(err)
+	cfg := &QSMConfig{
+		KafkaCfg: KafkaConfig{ 
+			Brokers: []string{"localhost:9092"},
+		}, 
+		StatsdCfg: StatsdConfig{
+			Addr: "172.19.0.2:8125", 
+			Prefix: "kqsm_prefix",
+		},
+		ReadInterval: 2 * time.Minute,
+		RetryInterval: 30 * time.Second,
+		MaxRetries: 10,
 	}
-	qsm.Start(2 * time.Minute)
+	Start(cfg)
 }
