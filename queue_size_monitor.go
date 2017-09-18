@@ -28,28 +28,50 @@ type QueueSizeMonitor struct {
 	Config                    *QSMConfig
 }
 
-// Start : Initiates the monitoring procedure, prints out the lag results
-// and sends the results to Statsd.
-func Start(cfg *QSMConfig) {
+// RetryOnFailure : As the name suggests, it retries the func passed an argument
+// based on the Max Retries and Retry Interval specified in the config.
+func RetryOnFailure(cfg *QSMConfig, title string, 
+	fn func() (interface{}, error)) (interface{}, error) {
 	var (
-		qsm *QueueSizeMonitor
-		err error
+		count  int
+		result interface{}
+		err    error
 	)
-
-	for {
-		qsm, err = NewQueueSizeMonitor(cfg)
+	for count := 1; count <= cfg.MaxRetries; count++ {
+		result, err = fn()
 		if err != nil {
-			log.Println("Error while creating QSM instance.", err)
-			time.Sleep(cfg.ReadInterval)
+			log.Println("Retrying due to error:", title)
+			time.Sleep(cfg.RetryInterval)
 			continue
 		}
 		break
 	}
+	if count > cfg.MaxRetries {
+		log.Println("Max Retries Exceeded: ", title)
+		return result, err
+	}
+	log.Println("Succeeded: ", title)
+	return result, nil
+}
+
+// Start : Initiates the monitoring procedure, prints out the lag results
+// and sends the results to Statsd.
+func Start(cfg *QSMConfig) {
+	result, err := RetryOnFailure(cfg, "Create_QSM", func() (interface{}, error) {
+		return NewQueueSizeMonitor(cfg)
+	})
+	if err != nil {
+		log.Println("Error while creating QSM instance.", err)
+		return
+	}
+	qsm := result.(*QueueSizeMonitor)
 
 	go qsm.GetConsumerOffsets()
 	for {
 		qsm.GetBrokerOffsets()
-		qsm.computeLag(qsm.BrokerOffsetStore, qsm.ConsumerOffsetStore)
+		RetryOnFailure(cfg, "Compute_Lag", func() (interface{}, error) {
+			return nil, qsm.computeLag(qsm.BrokerOffsetStore, qsm.ConsumerOffsetStore)
+		})
 		time.Sleep(cfg.ReadInterval)
 	}
 }
@@ -80,37 +102,13 @@ func NewQueueSizeMonitor(cfg *QSMConfig) (*QueueSizeMonitor, error) {
 	return qsm, err
 }
 
-// RetryOnFailure : As the name suggests, it retries the func passed an argument
-// based on the Max Retries and Retry Interval specified in the config.
-func (qsm *QueueSizeMonitor) RetryOnFailure(title string, fn func() (interface{}, error)) (interface{}, error) {
-	var (
-		count  int
-		result interface{}
-		err    error
-	)
-	for count := 1; count <= qsm.Config.MaxRetries; count++ {
-		result, err = fn()
-		if err != nil {
-			log.Println("Retrying due to error:", title)
-			time.Sleep(qsm.Config.RetryInterval)
-			continue
-		}
-		break
-	}
-	if count > qsm.Config.MaxRetries {
-		log.Println("Max Retries Exceeded: ", title)
-		return result, err
-	}
-	log.Println("Retry Succeeded: ", title)
-	return result, nil
-}
-
 // GetConsumerOffsets : Subcribes to Offset Topic and parses messages to 
 // obtains Consumer Offsets.
 func (qsm *QueueSizeMonitor) GetConsumerOffsets() {
 	log.Println("Started getting consumer partition offsets...")
 	
-	result, err := qsm.RetryOnFailure("Fetch_Client_Partitions", func() (interface{}, error) {
+	result, err := RetryOnFailure(qsm.Config, "Fetch_Client_Partitions", 
+		func() (interface{}, error) {
 		return qsm.Client.Partitions(ConsumerOffsetTopic)
 	})
 	if err != nil {
@@ -119,7 +117,8 @@ func (qsm *QueueSizeMonitor) GetConsumerOffsets() {
 	}
 	partitions := result.([]int32)
 
-	result, err = qsm.RetryOnFailure("Fetch_Client_Consumer", func() (interface{}, error) {
+	result, err = RetryOnFailure(qsm.Config, "Fetch_Client_Consumer", 
+		func() (interface{}, error) {
 		return sarama.NewConsumerFromClient(qsm.Client)
 	})
 	if err != nil {
@@ -241,7 +240,7 @@ func (qsm *QueueSizeMonitor) getTopicsAndPartitions(offsetStore GTPOffsetMap, mu
 }
 
 // Computes the lag and sends the data as a gauge to Statsd.
-func (qsm *QueueSizeMonitor) computeLag(brokerOffsetMap TPOffsetMap, consumerOffsetMap GTPOffsetMap) {
+func (qsm *QueueSizeMonitor) computeLag(brokerOffsetMap TPOffsetMap, consumerOffsetMap GTPOffsetMap) error {
 	for group, gbody := range consumerOffsetMap {
 		for topic, tbody := range gbody {
 			for partition := range tbody {
@@ -252,7 +251,10 @@ func (qsm *QueueSizeMonitor) computeLag(brokerOffsetMap TPOffsetMap, consumerOff
 					log.Printf("Negative Lag received for %s: %d", stat, lag)
 					continue
 				}
-				go qsm.sendGaugeToStatsd(stat, lag)
+				err := qsm.sendGaugeToStatsd(stat, lag)
+				if err != nil {
+					return err
+				}
 				log.Printf("\n+++++++++(Topic: %s, Partn: %d)++++++++++++" +
 					"\nBroker Offset: %d" +
 					"\nConsumer Offset: %d" +
@@ -263,6 +265,7 @@ func (qsm *QueueSizeMonitor) computeLag(brokerOffsetMap TPOffsetMap, consumerOff
 			}
 		}
 	}
+	return nil
 }
 
 // Store newly received consumer offset.
@@ -292,22 +295,19 @@ func (qsm *QueueSizeMonitor) storeBrokerOffset(newOffset *PartitionOffset) {
 }
 
 // Sends the gauge to Statsd.
-func (qsm *QueueSizeMonitor) sendGaugeToStatsd(stat string, value int64) {
-	for {
-		if qsm.StatsdClient == nil {
-			log.Println("Statsd Client not initialized yet.")
-			time.Sleep(qsm.Config.RetryInterval)
-			continue
-		}
-		err := qsm.StatsdClient.Gauge(stat, value)
-		if err != nil {
-			log.Println("Error while sending gauge to statsd:", err)
-			time.Sleep(qsm.Config.RetryInterval)
-			continue
-		}
-		log.Printf("Gauge sent to Statsd: %s=%d", stat, value)
-		break
+func (qsm *QueueSizeMonitor) sendGaugeToStatsd(stat string, value int64) error {
+	if qsm.StatsdClient == nil {
+		message := "Statsd Client not initialized yet."
+		log.Println(message)
+		return fmt.Errorf(message)
 	}
+	err := qsm.StatsdClient.Gauge(stat, value)
+	if err != nil {
+		log.Println("Error while sending gauge to statsd:", err)
+		return err
+	}
+	log.Printf("Gauge sent to Statsd: %s=%d", stat, value)
+	return nil
 }
 
 // Burrow-based Consumer Offset Message parser function.
@@ -395,4 +395,5 @@ func (qsm *QueueSizeMonitor) formatConsumerOffsetMessage(message *sarama.Consume
 	}
 
 	qsm.storeConsumerOffset(partitionOffset)
+	log.Println("Consumer Offset: ", partitionOffset.Offset)
 }

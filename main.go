@@ -10,7 +10,7 @@ func main() {
 			Brokers: []string{"localhost:9092"},
 		}, 
 		StatsdCfg: StatsdConfig{
-			Addr: "172.19.0.2:8125", 
+			Addr: "172.19.0.3:8125", 
 			Prefix: "kqsm_prefix",
 		},
 		ReadInterval: 2 * time.Minute,
