@@ -205,24 +205,20 @@ func (qsm *QueueSizeMonitor) GetConsumerOffsets() error {
 		return nil
 	}
 
-	storeMessages := func(partition int32) error {
+	consumeMessage := func(consumer sarama.PartitionConsumer) {
+		for message := range consumer.Messages() {
+			formatAndStoreMessage(message)
+		}
+	}
+
+	for _, partition := range partitions {
 		pConsumer, err := consumer.ConsumePartition(ConsumerOffsetTopic, partition, sarama.OffsetNewest)
 		if err != nil {
 			log.Println("Error occured while consuming partition.", err)
 			pConsumer.AsyncClose()
 			return err
 		}
-		for message := range pConsumer.Messages() {
-			go formatAndStoreMessage(message)
-		}
-		return nil
-	}
-
-	for _, partition := range partitions {
-		err := storeMessages(partition)
-		if err != nil {
-			return err
-		}
+		go consumeMessage(pConsumer)
 	}
 	return nil
 }
