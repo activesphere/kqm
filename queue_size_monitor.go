@@ -89,6 +89,9 @@ func Start(cfg *QSMConfig) {
 func NewQueueSizeMonitor(cfg *QSMConfig) (*QueueSizeMonitor, error) {
 
 	config := sarama.NewConfig()
+	// Setting Consumer.Return.Errors to true enables sending the Partition
+	// Consumer Errors to the Error Channel instead of logging them.
+	config.Consumer.Return.Errors = true
 	client, err := sarama.NewClient(cfg.KafkaCfg.Brokers, config)
 	if err != nil {
 		return nil, err
@@ -111,7 +114,7 @@ func NewQueueSizeMonitor(cfg *QSMConfig) (*QueueSizeMonitor, error) {
 
 // GetConsumerOffsets : Subcribes to Offset Topic and parses messages to
 // obtains Consumer Offsets.
-func (qsm *QueueSizeMonitor) GetConsumerOffsets() error {
+func (qsm *QueueSizeMonitor) GetConsumerOffsets(errorChannel chan error) error {
 	log.Println("Started getting consumer partition offsets...")
 
 	partitions, err := qsm.Client.Partitions(ConsumerOffsetTopic)
@@ -126,99 +129,117 @@ func (qsm *QueueSizeMonitor) GetConsumerOffsets() error {
 		return err
 	}
 
-	log.Println("Number of Partition Consumers:", len(partitions))
+	partitionConsumers := make([]PartitionConsumer, len(partitions))
 
-	// Burrow-based Consumer Offset Message parser function.
-	formatAndStoreMessage := func (message *sarama.ConsumerMessage) error {
-		readString := func(buf *bytes.Buffer) (string, error) {
-			var strlen uint16
-			err := binary.Read(buf, binary.BigEndian, &strlen)
-			if err != nil {
-				return "", err
-			}
-			strbytes := make([]byte, strlen)
-			n, err := buf.Read(strbytes)
-			if (err != nil) || (n != int(strlen)) {
-				return "", fmt.Errorf("string underflow")
-			}
-			return string(strbytes), nil
+	closePartitionConsumers := func() {
+		for _, pConsumer := range partitionConsumers {
+			pConsumer.AsyncClose()
 		}
-
-		var (
-			keyver, valver uint16
-			group, topic string
-			partition uint32
-			offset, timestamp uint64
-		)
-
-		buf := bytes.NewBuffer(message.Key)
-		err := binary.Read(buf, binary.BigEndian, &keyver)
-		switch keyver {
-		case 0, 1:
-			group, err = readString(buf)
-			if err != nil {
-				return err
-			}
-			topic, err = readString(buf)
-			if err != nil {
-				return err
-			}
-			err = binary.Read(buf, binary.BigEndian, &partition)
-			if err != nil {
-				return err
-			}
-		case 2:
-			return err
-		default:
-			return err
-		}
-
-		buf = bytes.NewBuffer(message.Value)
-		err = binary.Read(buf, binary.BigEndian, &valver)
-		if (err != nil) || ((valver != 0) && (valver != 1)) {
-			return err
-		}
-		err = binary.Read(buf, binary.BigEndian, &offset)
-		if err != nil {
-			return err
-		}
-		_, err = readString(buf)
-		if err != nil {
-			return err
-		}
-		err = binary.Read(buf, binary.BigEndian, &timestamp)
-		if err != nil {
-			return err
-		}
-
-		partitionOffset := &PartitionOffset{
-			Topic:     topic,
-			Partition: int32(partition),
-			Group:     group,
-			Timestamp: int64(timestamp),
-			Offset:    int64(offset),
-		}
-
-		qsm.storeConsumerOffset(partitionOffset)
-		log.Println("Consumer Offset: ", partitionOffset.Offset)
-		return nil
 	}
 
 	consumeMessage := func(consumer sarama.PartitionConsumer) {
+		// Burrow-based Consumer Offset Message parser function.
+		formatAndStoreMessage := func (message *sarama.ConsumerMessage) error {
+			readString := func(buf *bytes.Buffer) (string, error) {
+				var strlen uint16
+				err := binary.Read(buf, binary.BigEndian, &strlen)
+				if err != nil {
+					return "", err
+				}
+				strbytes := make([]byte, strlen)
+				n, err := buf.Read(strbytes)
+				if (err != nil) || (n != int(strlen)) {
+					return "", fmt.Errorf("string underflow")
+				}
+				return string(strbytes), nil
+			}
+
+			var (
+				keyver, valver uint16
+				group, topic string
+				partition uint32
+				offset, timestamp uint64
+			)
+
+			buf := bytes.NewBuffer(message.Key)
+			err := binary.Read(buf, binary.BigEndian, &keyver)
+			switch keyver {
+			case 0, 1:
+				group, err = readString(buf)
+				if err != nil {
+					return err
+				}
+				topic, err = readString(buf)
+				if err != nil {
+					return err
+				}
+				err = binary.Read(buf, binary.BigEndian, &partition)
+				if err != nil {
+					return err
+				}
+			case 2:
+				return err
+			default:
+				return err
+			}
+
+			buf = bytes.NewBuffer(message.Value)
+			err = binary.Read(buf, binary.BigEndian, &valver)
+			if (err != nil) || ((valver != 0) && (valver != 1)) {
+				return err
+			}
+			err = binary.Read(buf, binary.BigEndian, &offset)
+			if err != nil {
+				return err
+			}
+			_, err = readString(buf)
+			if err != nil {
+				return err
+			}
+			err = binary.Read(buf, binary.BigEndian, &timestamp)
+			if err != nil {
+				return err
+			}
+
+			partitionOffset := &PartitionOffset{
+				Topic:     topic,
+				Partition: int32(partition),
+				Group:     group,
+				Timestamp: int64(timestamp),
+				Offset:    int64(offset),
+			}
+
+			qsm.storeConsumerOffset(partitionOffset)
+			log.Println("Consumer Offset: ", partitionOffset.Offset)
+			return nil
+		}
+
 		for message := range consumer.Messages() {
 			formatAndStoreMessage(message)
 		}
+		closePartitionConsumers()
 	}
 
-	for _, partition := range partitions {
+	checkErrors := func(consumer sarama.PartitionConsumer) {
+		errorChannel <- (<- consumer.Errors()).Err
+		closePartitionConsumers()
+	}
+
+	for i, partition := range partitions {
 		pConsumer, err := consumer.ConsumePartition(ConsumerOffsetTopic, partition, sarama.OffsetNewest)
 		if err != nil {
 			log.Println("Error occured while consuming partition.", err)
-			pConsumer.AsyncClose()
+			closePartitionConsumers()
 			return err
 		}
-		go consumeMessage(pConsumer)
+		partitionConsumers[i] = pConsumer
 	}
+
+	for _, pConsumer := range partitionConsumers {
+		go consumeMessage(pConsumer)
+		go checkErrors(pConsumer)
+	}
+
 	return nil
 }
 

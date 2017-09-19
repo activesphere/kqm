@@ -25,6 +25,21 @@ type BrokerOffsetRequest struct {
 	OffsetRequest   *sarama.OffsetRequest
 }
 
+// PartitionConsumer : Wrapper around sarama.PartitionConsumer
+type PartitionConsumer struct {
+	handle    sarama.PartitionConsumer
+	isClosed  bool
+}
+
+// AsyncClose : Wrapper around sarama.PartitionConsumer.AsyncClose()
+func (pc *PartitionConsumer) AsyncClose() {
+	if(pc.isClosed) {
+		return
+	}
+	pc.isClosed = true
+	pc.handle.AsyncClose()
+}
+
 // KafkaConfig : Type for Kafka Broker Configuration.
 type KafkaConfig struct {
 	Brokers []string
