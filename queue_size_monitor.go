@@ -51,13 +51,13 @@ func RetryWithChannel(cfg *QSMConfig, title string, fn func(ec chan error) error
 	for {
 		err = fn(errorChannel)
 		if err != nil {
-			log.Println("Retrying due to a error:", title)
+			log.Println("Retrying due to a error returned by fn:", title)
 			time.Sleep(cfg.RetryInterval)
 			continue
 		}
 		err = <- errorChannel
 		if err != nil {
-			log.Println("Retrying due to a channel error:", title)
+			log.Println("Retrying due to a error received from channel:", title)
 			time.Sleep(cfg.RetryInterval)
 			continue
 		}

@@ -33,11 +33,11 @@ type PartitionConsumer struct {
 
 // AsyncClose : Wrapper around sarama.PartitionConsumer.AsyncClose()
 func (pc *PartitionConsumer) AsyncClose() {
-	if(pc.isClosed) {
+	if pc.isClosed {
 		return
 	}
-	pc.isClosed = true
 	pc.Handle.AsyncClose()
+	pc.isClosed = true
 }
 
 // KafkaConfig : Type for Kafka Broker Configuration.
