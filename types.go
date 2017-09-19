@@ -1,6 +1,8 @@
 package main
 
 import (
+	"sync"
+	"log"
 	"time"
 	"github.com/Shopify/sarama"
 )
@@ -27,15 +29,24 @@ type BrokerOffsetRequest struct {
 
 // PartitionConsumer : Wrapper around sarama.PartitionConsumer
 type PartitionConsumer struct {
-	Handle    sarama.PartitionConsumer
-	isClosed  bool
+	Handle        sarama.PartitionConsumer
+	HandleMutex   *sync.Mutex
+	isClosed      bool
 }
 
 // AsyncClose : Wrapper around sarama.PartitionConsumer.AsyncClose()
 func (pc *PartitionConsumer) AsyncClose() {
-	if pc.isClosed {
+	defer pc.HandleMutex.Unlock()
+	pc.HandleMutex.Lock()
+	if pc.Handle == nil {
+		log.Println("Partition Consumer is uninitialized.")
 		return
 	}
+	if pc.isClosed {
+		log.Println("Partition Consumer is already closed.")
+		return
+	}
+	log.Println("Closing Partition Consumer...")
 	pc.Handle.AsyncClose()
 	pc.isClosed = true
 }

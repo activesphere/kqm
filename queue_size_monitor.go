@@ -131,27 +131,13 @@ func NewQueueSizeMonitor(cfg *QSMConfig) (*QueueSizeMonitor, error) {
 func (qsm *QueueSizeMonitor) GetConsumerOffsets(errorChannel chan error) error {
 	log.Println("Started getting consumer partition offsets...")
 
-	partitions, err := qsm.Client.Partitions(ConsumerOffsetTopic)
-	if err != nil {
-		log.Println("Error occured while getting client partitions.", err)
-		return err
-	}
-
-	consumer, err := sarama.NewConsumerFromClient(qsm.Client)
-	if err != nil {
-		log.Println("Error occured while creating new client consumer.", err)
-		return err
-	}
-
-	partitionConsumers := make([]PartitionConsumer, len(partitions))
-
-	closePartitionConsumers := func() {
-		for _, pConsumer := range partitionConsumers {
+	closePartitionConsumers := func(pConsumers []*PartitionConsumer) {
+		for _, pConsumer := range pConsumers {
 			pConsumer.AsyncClose()
 		}
 	}
 
-	consumeMessage := func(pConsumer PartitionConsumer) {
+	consumeMessage := func(pConsumers []*PartitionConsumer, index int) {
 		// Burrow-based Consumer Offset Message parser function.
 		formatAndStoreMessage := func (message *sarama.ConsumerMessage) error {
 			readString := func(buf *bytes.Buffer) (string, error) {
@@ -228,30 +214,48 @@ func (qsm *QueueSizeMonitor) GetConsumerOffsets(errorChannel chan error) error {
 			return nil
 		}
 
-		for message := range pConsumer.Handle.Messages() {
+		for message := range pConsumers[index].Handle.Messages() {
 			formatAndStoreMessage(message)
 		}
-		closePartitionConsumers()
+		closePartitionConsumers(pConsumers)
 	}
 
-	checkErrors := func(pConsumer PartitionConsumer) {
-		errorChannel <- (<- pConsumer.Handle.Errors()).Err
-		closePartitionConsumers()
+	checkErrors := func(pConsumers []*PartitionConsumer, index int) {
+		errorChannel <- (<- pConsumers[index].Handle.Errors()).Err
+		closePartitionConsumers(pConsumers)
 	}
 
-	for i, partition := range partitions {
+	partitions, err := qsm.Client.Partitions(ConsumerOffsetTopic)
+	if err != nil {
+		log.Println("Error occured while getting client partitions.", err)
+		return err
+	}
+
+	consumer, err := sarama.NewConsumerFromClient(qsm.Client)
+	if err != nil {
+		log.Println("Error occured while creating new client consumer.", err)
+		return err
+	}
+
+	partitionConsumers := make([]*PartitionConsumer, 0)
+
+	for _, partition := range partitions {
 		pConsumer, err := consumer.ConsumePartition(ConsumerOffsetTopic, partition, sarama.OffsetNewest)
 		if err != nil {
 			log.Println("Error occured while consuming partition.", err)
-			closePartitionConsumers()
+			closePartitionConsumers(partitionConsumers)
 			return err
 		}
-		partitionConsumers[i] = PartitionConsumer{Handle: pConsumer, isClosed: false}
+		partitionConsumers = append(partitionConsumers, &PartitionConsumer{
+			Handle: pConsumer,
+			HandleMutex: &sync.Mutex{},
+			isClosed: false,
+		})
 	}
 
-	for _, pConsumer := range partitionConsumers {
-		go consumeMessage(pConsumer)
-		go checkErrors(pConsumer)
+	for index := range partitionConsumers {
+		go consumeMessage(partitionConsumers, index)
+		go checkErrors(partitionConsumers, index)
 	}
 
 	return nil
