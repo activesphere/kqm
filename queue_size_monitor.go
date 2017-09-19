@@ -27,22 +27,37 @@ type QueueSizeMonitor struct {
 	Config                    *QSMConfig
 }
 
-// RetryOnFailure : It retries the func passed an argument
-// based on the whether the the fn returns an error or the
-// Error channel receives an error or not.
-func RetryOnFailure(cfg *QSMConfig, title string, fn func(ec chan error) error) {
-	errorChannel := make(chan error)
-	var err error
+// Retry : It retries the func passed an argument based on the whether or not
+// the the fn returns an error.
+func Retry(cfg *QSMConfig, title string, fn func() error) {
 	for {
-		err = fn(errorChannel)
+		err := fn()
 		if err != nil {
 			log.Println("Retrying due to a sychronous error:", title)
 			time.Sleep(cfg.RetryInterval)
 			continue
 		}
+		log.Println("Completed Execution Successfully:", title)
+		break
+	}
+}
+
+// RetryWithChannel : It retries the func passed an argument
+// based on the whether the the fn returns an error or the
+// Error channel receives an error or not.
+func RetryWithChannel(cfg *QSMConfig, title string, fn func(ec chan error) error) {
+	errorChannel := make(chan error)
+	var err error
+	for {
+		err = fn(errorChannel)
+		if err != nil {
+			log.Println("Retrying due to a error:", title)
+			time.Sleep(cfg.RetryInterval)
+			continue
+		}
 		err = <- errorChannel
 		if err != nil {
-			log.Println("Retrying due to an asychronous error:", title)
+			log.Println("Retrying due to a channel error:", title)
 			time.Sleep(cfg.RetryInterval)
 			continue
 		}
@@ -61,13 +76,13 @@ func Start(cfg *QSMConfig) {
 	}
 
 	go func() {
-		RetryOnFailure(cfg, "CONSUMER_OFFSETS", func(ec chan error) error {
+		RetryWithChannel(cfg, "CONSUMER_OFFSETS", func(ec chan error) error {
 			return qsm.GetConsumerOffsets(ec)
 		})
 	}()
 
 	for {
-		RetryOnFailure(cfg, "REPORT_LAG", func(ec chan error) error {
+		Retry(cfg, "REPORT_LAG", func() error {
 			err := qsm.GetBrokerOffsets()
 			if err != nil {
 				return err

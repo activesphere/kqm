@@ -57,5 +57,4 @@ type QSMConfig struct {
 	StatsdCfg          StatsdConfig
 	ReadInterval       time.Duration
 	RetryInterval      time.Duration
-	MaxRetries         int
 }
