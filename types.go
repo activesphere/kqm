@@ -25,15 +25,6 @@ type BrokerOffsetRequest struct {
 	OffsetRequest   *sarama.OffsetRequest
 }
 
-// POffsetMap : Custom type for Partition -> Offset.
-type POffsetMap map[int32]int64
-
-// TPOffsetMap : Aggregated type for Topic -> Partition -> Offset.
-type TPOffsetMap map[string]POffsetMap
-
-// GTPOffsetMap : Aggregated type for Group -> Topic -> Partition -> Offset.
-type GTPOffsetMap map[string]TPOffsetMap
-
 // KafkaConfig : Type for Kafka Broker Configuration.
 type KafkaConfig struct {
 	Brokers []string

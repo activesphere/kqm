@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"log"
+	"golang.org/x/sync/syncmap"
 	"github.com/Shopify/sarama"
 	"github.com/quipo/statsd"
 )
@@ -19,11 +20,9 @@ const ConsumerOffsetTopic = "__consumer_offsets"
 type QueueSizeMonitor struct {
 	Client                    sarama.Client
 	wgConsumerMessages        sync.WaitGroup
-	ConsumerOffsetStore       GTPOffsetMap
-	ConsumerOffsetStoreMutex  sync.Mutex
+	ConsumerOffsetStore       *syncmap.Map
 	wgBrokerOffsetResponse    sync.WaitGroup
-	BrokerOffsetStore         TPOffsetMap
-	BrokerOffsetStoreMutex    sync.Mutex
+	BrokerOffsetStore         *syncmap.Map
 	StatsdClient              *statsd.StatsdClient
 	Config                    *QSMConfig
 }
@@ -103,8 +102,8 @@ func NewQueueSizeMonitor(cfg *QSMConfig) (*QueueSizeMonitor, error) {
 
 	qsm := &QueueSizeMonitor{}
 	qsm.Client = client
-	qsm.ConsumerOffsetStore = make(GTPOffsetMap)
-	qsm.BrokerOffsetStore = make(TPOffsetMap)
+	qsm.ConsumerOffsetStore = new(syncmap.Map)
+	qsm.BrokerOffsetStore = new(syncmap.Map)
 	qsm.StatsdClient = statsdClient
 	qsm.Config = cfg
 	return qsm, err
@@ -227,7 +226,7 @@ func (qsm *QueueSizeMonitor) GetConsumerOffsets() error {
 // gets the latest commited offsets.
 func (qsm *QueueSizeMonitor) GetBrokerOffsets() error {
 
-	tpMap := qsm.getTopicsAndPartitions(qsm.ConsumerOffsetStore, &qsm.ConsumerOffsetStoreMutex)
+	tpMap := qsm.getTopicsAndPartitions(qsm.ConsumerOffsetStore)
 	brokerOffsetRequests := make(map[int32]BrokerOffsetRequest)
 
 	for topic, partitions := range tpMap {
@@ -287,88 +286,92 @@ func (qsm *QueueSizeMonitor) GetBrokerOffsets() error {
 }
 
 // Fetches topics and their corresponding partitions.
-func (qsm *QueueSizeMonitor) getTopicsAndPartitions(offsetStore GTPOffsetMap, mutex *sync.Mutex) map[string][]int32 {
-	defer mutex.Unlock()
-	mutex.Lock()
+func (qsm *QueueSizeMonitor) getTopicsAndPartitions(offsetStore *syncmap.Map) map[string][]int32 {
 	tpMap := make(map[string][]int32)
-	for _, gbody := range offsetStore {
-		for topic, tbody := range gbody {
-			for partition := range tbody {
-				tpMap[topic] = append(tpMap[topic], partition)
-			}
-		}
-	}
+	offsetStore.Range(func(_, gbodyI interface{}) bool {
+		gbodyI.(*syncmap.Map).Range(func(topicI, tbodyI interface{}) bool {
+			topic := topicI.(string)
+			tbodyI.(*syncmap.Map).Range(func(partitionI, _ interface{}) bool {
+				tpMap[topic] = append(tpMap[topic], partitionI.(int32))
+				return true
+			})
+			return true
+		})
+		return true
+	})
 	return tpMap
 }
 
 // Computes the lag and sends the data as a gauge to Statsd.
-func (qsm *QueueSizeMonitor) computeLag(brokerOffsetMap TPOffsetMap, consumerOffsetMap GTPOffsetMap) error {
-	for group, gbody := range consumerOffsetMap {
-		for topic, tbody := range gbody {
-			for partition := range tbody {
-				lag := brokerOffsetMap[topic][partition] - consumerOffsetMap[group][topic][partition]
+func (qsm *QueueSizeMonitor) computeLag(brokerOffsetMap *syncmap.Map, consumerOffsetMap *syncmap.Map) error {
+	consumerOffsetMap.Range(func(groupI, gbodyI interface{}) bool {
+		group := groupI.(string)
+		gbodyI.(*syncmap.Map).Range(func(topicI, tbodyI interface{}) bool {
+			topic := topicI.(string)
+			tbodyI.(*syncmap.Map).Range(func(partitionI, offsetI interface{}) bool {
+				partition := partitionI.(int32)
+				consumerOffset := offsetI.(int64)
+
+				tmp, _ := brokerOffsetMap.Load(topic)
+				brokerPMap := tmp.(*syncmap.Map)
+				tmp, _ = brokerPMap.Load(partition)
+				brokerOffset := tmp.(int64)
+
+				lag := brokerOffset - consumerOffset
+
 				stat := fmt.Sprintf("%s.group.%s.%s.%d",
 					qsm.Config.StatsdCfg.Prefix, group, topic, partition)
 				if lag < 0 {
 					log.Printf("Negative Lag received for %s: %d", stat, lag)
-					continue
+					return true
 				}
-				err := qsm.sendGaugeToStatsd(stat, lag)
-				if err != nil {
-					return err
-				}
+				go qsm.sendGaugeToStatsd(stat, lag)
 				log.Printf("\n+++++++++(Topic: %s, Partn: %d)++++++++++++" +
 					"\nBroker Offset: %d" +
 					"\nConsumer Offset: %d" +
 					"\nLag: %d" +
 					"\n++++++++++(Group: %s)+++++++++++",
-					topic, partition, brokerOffsetMap[topic][partition],
-					consumerOffsetMap[group][topic][partition], lag, group)
-			}
-		}
-	}
+					topic, partition, brokerOffset, consumerOffset, lag, group)
+
+				return true
+			})
+			return true
+		})
+		return true
+	})
 	return nil
 }
 
 // Store newly received consumer offset.
 func (qsm *QueueSizeMonitor) storeConsumerOffset(newOffset *PartitionOffset) {
-	defer qsm.ConsumerOffsetStoreMutex.Unlock()
-	qsm.ConsumerOffsetStoreMutex.Lock()
 	group, topic, partition, offset := newOffset.Group, newOffset.Topic,
 		newOffset.Partition, newOffset.Offset
-	if _, ok := qsm.ConsumerOffsetStore[group]; !ok {
-		qsm.ConsumerOffsetStore[group] = make(TPOffsetMap)
-	}
-	if _, ok := qsm.ConsumerOffsetStore[group][topic]; !ok {
-		qsm.ConsumerOffsetStore[group][topic] = make(POffsetMap)
-	}
-	qsm.ConsumerOffsetStore[group][topic][partition] = offset
+	tmp, _ := qsm.ConsumerOffsetStore.LoadOrStore(group, new(syncmap.Map))
+	tpOffsetMap := tmp.(*syncmap.Map)
+	tmp, _ = tpOffsetMap.LoadOrStore(topic, new(syncmap.Map))
+	pOffsetMap := tmp.(*syncmap.Map)
+	pOffsetMap.Store(partition, offset)
 }
 
 // Store newly received broker offset.
 func (qsm *QueueSizeMonitor) storeBrokerOffset(newOffset *PartitionOffset) {
-	defer qsm.BrokerOffsetStoreMutex.Unlock()
-	qsm.BrokerOffsetStoreMutex.Lock()
 	topic, partition, offset := newOffset.Topic, newOffset.Partition, newOffset.Offset
-	if _, ok := qsm.BrokerOffsetStore[topic]; !ok {
-		qsm.BrokerOffsetStore[topic] = make(POffsetMap)
-	}
-	qsm.BrokerOffsetStore[topic][partition] = offset
+	tmp, _ := qsm.BrokerOffsetStore.LoadOrStore(topic, new(syncmap.Map))
+	pOffsetMap := tmp.(*syncmap.Map)
+	pOffsetMap.Store(partition, offset)
 }
 
 // Sends the gauge to Statsd.
-func (qsm *QueueSizeMonitor) sendGaugeToStatsd(stat string, value int64) error {
+func (qsm *QueueSizeMonitor) sendGaugeToStatsd(stat string, value int64) {
 	if qsm.StatsdClient == nil {
-		message := "Statsd Client not initialized yet."
-		log.Println(message)
-		return fmt.Errorf(message)
+		log.Println("Statsd Client not initialized yet.")
+		return
 	}
 	err := qsm.StatsdClient.Gauge(stat, value)
 	if err != nil {
 		log.Println("Error while sending gauge to statsd:", err)
-		return err
+		return
 	}
 	log.Printf("Gauge sent to Statsd: %s=%d", stat, value)
-	return nil
 }
 
