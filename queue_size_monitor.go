@@ -14,7 +14,7 @@ import (
 // ConsumerOffsetTopic : provides the topic name of the Offset Topic.
 const ConsumerOffsetTopic = "__consumer_offsets"
 
-// QueueSizeMonitor : Defines the type for Kafka Queue Size 
+// QueueSizeMonitor : Defines the type for Kafka Queue Size
 // Monitor implementation using Sarama.
 type QueueSizeMonitor struct {
 	Client                    sarama.Client
@@ -30,7 +30,7 @@ type QueueSizeMonitor struct {
 
 // RetryOnFailure : As the name suggests, it retries the func passed an argument
 // based on the Max Retries and Retry Interval specified in the config.
-func RetryOnFailure(cfg *QSMConfig, title string, 
+func RetryOnFailure(cfg *QSMConfig, title string,
 	fn func() error) error {
 	var (
 		count  int
@@ -85,22 +85,22 @@ func Start(cfg *QSMConfig) {
 }
 
 // NewQueueSizeMonitor : Returns a QueueSizeMonitor with an initialized client
-// based on the comma-separated brokers (eg. "localhost:9092") along with 
+// based on the comma-separated brokers (eg. "localhost:9092") along with
 // the Statsd instance address (eg. "localhost:8125").
 func NewQueueSizeMonitor(cfg *QSMConfig) (*QueueSizeMonitor, error) {
-	
+
 	config := sarama.NewConfig()
 	client, err := sarama.NewClient(cfg.KafkaCfg.Brokers, config)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	statsdClient := statsd.NewStatsdClient(cfg.StatsdCfg.Addr, cfg.StatsdCfg.Prefix)
 	err = statsdClient.CreateSocket()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	qsm := &QueueSizeMonitor{}
 	qsm.Client = client
 	qsm.ConsumerOffsetStore = make(GTPOffsetMap)
@@ -110,11 +110,11 @@ func NewQueueSizeMonitor(cfg *QSMConfig) (*QueueSizeMonitor, error) {
 	return qsm, err
 }
 
-// GetConsumerOffsets : Subcribes to Offset Topic and parses messages to 
+// GetConsumerOffsets : Subcribes to Offset Topic and parses messages to
 // obtains Consumer Offsets.
 func (qsm *QueueSizeMonitor) GetConsumerOffsets() error {
 	log.Println("Started getting consumer partition offsets...")
-	
+
 	partitions, err := qsm.Client.Partitions(ConsumerOffsetTopic)
 	if err != nil {
 		log.Println("Error occured while getting client partitions.", err)
@@ -130,7 +130,7 @@ func (qsm *QueueSizeMonitor) GetConsumerOffsets() error {
 	log.Println("Number of Partition Consumers:", len(partitions))
 
 	// Burrow-based Consumer Offset Message parser function.
-	formatAndStoreMessage := func (message *sarama.ConsumerMessage) error {	
+	formatAndStoreMessage := func (message *sarama.ConsumerMessage) error {
 		readString := func(buf *bytes.Buffer) (string, error) {
 			var strlen uint16
 			err := binary.Read(buf, binary.BigEndian, &strlen)
@@ -223,10 +223,10 @@ func (qsm *QueueSizeMonitor) GetConsumerOffsets() error {
 	return nil
 }
 
-// GetBrokerOffsets : Finds out the leader brokers for the partitions and 
+// GetBrokerOffsets : Finds out the leader brokers for the partitions and
 // gets the latest commited offsets.
 func (qsm *QueueSizeMonitor) GetBrokerOffsets() error {
-	
+
 	tpMap := qsm.getTopicsAndPartitions(qsm.ConsumerOffsetStore, &qsm.ConsumerOffsetStoreMutex)
 	brokerOffsetRequests := make(map[int32]BrokerOffsetRequest)
 
@@ -250,7 +250,7 @@ func (qsm *QueueSizeMonitor) GetBrokerOffsets() error {
 			}
 		}
 	}
-	
+
 	storeResponse := func(request *BrokerOffsetRequest) error {
 		response, err := request.Broker.GetAvailableOffsets(request.OffsetRequest)
 		if err != nil {
@@ -261,7 +261,7 @@ func (qsm *QueueSizeMonitor) GetBrokerOffsets() error {
 		for topic, partitionMap := range response.Blocks {
 			for partition, offsetResponseBlock := range partitionMap {
 				if offsetResponseBlock.Err != sarama.ErrNoError {
-					log.Println("Error in offset response block.", 
+					log.Println("Error in offset response block.",
 						offsetResponseBlock.Err.Error())
 					continue
 				}
@@ -307,7 +307,7 @@ func (qsm *QueueSizeMonitor) computeLag(brokerOffsetMap TPOffsetMap, consumerOff
 		for topic, tbody := range gbody {
 			for partition := range tbody {
 				lag := brokerOffsetMap[topic][partition] - consumerOffsetMap[group][topic][partition]
-				stat := fmt.Sprintf("%s.group.%s.%s.%d", 
+				stat := fmt.Sprintf("%s.group.%s.%s.%d",
 					qsm.Config.StatsdCfg.Prefix, group, topic, partition)
 				if lag < 0 {
 					log.Printf("Negative Lag received for %s: %d", stat, lag)
@@ -321,8 +321,8 @@ func (qsm *QueueSizeMonitor) computeLag(brokerOffsetMap TPOffsetMap, consumerOff
 					"\nBroker Offset: %d" +
 					"\nConsumer Offset: %d" +
 					"\nLag: %d" +
-					"\n++++++++++(Group: %s)+++++++++++", 
-					topic, partition, brokerOffsetMap[topic][partition], 
+					"\n++++++++++(Group: %s)+++++++++++",
+					topic, partition, brokerOffsetMap[topic][partition],
 					consumerOffsetMap[group][topic][partition], lag, group)
 			}
 		}
