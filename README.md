@@ -16,6 +16,11 @@ go get -u github.com/activesphere/kqm
 Usage
 -------------------
 ```
+import (
+	"time"
+	"github.com/activesphere/kqm"
+)
+
 cfg := &QSMConfig{
 	KafkaCfg: KafkaConfig{
 		Brokers: []string{"localhost:9092"},
