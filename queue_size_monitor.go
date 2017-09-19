@@ -27,29 +27,28 @@ type QueueSizeMonitor struct {
 	Config                    *QSMConfig
 }
 
-// RetryOnFailure : As the name suggests, it retries the func passed an argument
-// based on the Max Retries and Retry Interval specified in the config.
-func RetryOnFailure(cfg *QSMConfig, title string,
-	fn func() error) error {
-	var (
-		count  int
-		err    error
-	)
-	for count := 1; count <= cfg.MaxRetries; count++ {
-		err = fn()
+// RetryOnFailure : It retries the func passed an argument
+// based on the whether the the fn returns an error or the
+// Error channel receives an error or not.
+func RetryOnFailure(cfg *QSMConfig, title string, fn func(ec chan error) error) {
+	errorChannel := make(chan error)
+	var err error
+	for {
+		err = fn(errorChannel)
 		if err != nil {
-			log.Println("Retrying due to error:", title)
+			log.Println("Retrying due to a sychronous error:", title)
 			time.Sleep(cfg.RetryInterval)
 			continue
 		}
+		err = <- errorChannel
+		if err != nil {
+			log.Println("Retrying due to an asychronous error:", title)
+			time.Sleep(cfg.RetryInterval)
+			continue
+		}
+		log.Println("Completed Execution Successfully:", title)
 		break
 	}
-	if count > cfg.MaxRetries {
-		log.Println("Max Retries Exceeded: ", title)
-		return err
-	}
-	log.Println("Succeeded: ", title)
-	return nil
 }
 
 // Start : Initiates the monitoring procedure, prints out the lag results
@@ -62,13 +61,13 @@ func Start(cfg *QSMConfig) {
 	}
 
 	go func() {
-		RetryOnFailure(cfg, "CONSUMER_OFFSETS", func() error {
-			return qsm.GetConsumerOffsets()
+		RetryOnFailure(cfg, "CONSUMER_OFFSETS", func(ec chan error) error {
+			return qsm.GetConsumerOffsets(ec)
 		})
 	}()
 
 	for {
-		RetryOnFailure(cfg, "REPORT_LAG", func() error {
+		RetryOnFailure(cfg, "REPORT_LAG", func(ec chan error) error {
 			err := qsm.GetBrokerOffsets()
 			if err != nil {
 				return err
@@ -137,7 +136,7 @@ func (qsm *QueueSizeMonitor) GetConsumerOffsets(errorChannel chan error) error {
 		}
 	}
 
-	consumeMessage := func(consumer sarama.PartitionConsumer) {
+	consumeMessage := func(pConsumer PartitionConsumer) {
 		// Burrow-based Consumer Offset Message parser function.
 		formatAndStoreMessage := func (message *sarama.ConsumerMessage) error {
 			readString := func(buf *bytes.Buffer) (string, error) {
@@ -214,14 +213,14 @@ func (qsm *QueueSizeMonitor) GetConsumerOffsets(errorChannel chan error) error {
 			return nil
 		}
 
-		for message := range consumer.Messages() {
+		for message := range pConsumer.Handle.Messages() {
 			formatAndStoreMessage(message)
 		}
 		closePartitionConsumers()
 	}
 
-	checkErrors := func(consumer sarama.PartitionConsumer) {
-		errorChannel <- (<- consumer.Errors()).Err
+	checkErrors := func(pConsumer PartitionConsumer) {
+		errorChannel <- (<- pConsumer.Handle.Errors()).Err
 		closePartitionConsumers()
 	}
 
@@ -232,7 +231,7 @@ func (qsm *QueueSizeMonitor) GetConsumerOffsets(errorChannel chan error) error {
 			closePartitionConsumers()
 			return err
 		}
-		partitionConsumers[i] = pConsumer
+		partitionConsumers[i] = PartitionConsumer{Handle: pConsumer, isClosed: false}
 	}
 
 	for _, pConsumer := range partitionConsumers {
