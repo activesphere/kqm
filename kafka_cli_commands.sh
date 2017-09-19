@@ -1,3 +1,5 @@
+Before using any of these commands, make sure you are in the kafka dir.
+
 # Start Kafka Server:
 nohup bin/kafka-server-start.sh config/server.properties > running.log 2>&1 &
 
