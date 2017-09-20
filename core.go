@@ -107,6 +107,7 @@ func NewQueueMonitor(cfg *QMConfig) (*QueueMonitor, error) {
 	qm.Config = cfg
 
 	if cfg.StatsdCfg.Enabled {
+		log.Println("Enabled:", cfg.StatsdCfg.Enabled)
 		statsdClient := statsd.NewStatsdClient(cfg.StatsdCfg.Addr,
 			cfg.StatsdCfg.Prefix)
 		err = statsdClient.CreateSocket()
