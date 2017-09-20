@@ -209,7 +209,10 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 	}
 
 	checkErrors := func(pConsumers []*PartitionConsumer, index int) {
-		errorChannel <- (<- pConsumers[index].Handle.Errors()).Err
+		consumerError := <- pConsumers[index].Handle.Errors()
+		if consumerError != nil {
+			errorChannel <- consumerError.Err
+		}
 		closePartitionConsumers(pConsumers)
 	}
 
