@@ -14,15 +14,17 @@ kqm --brokers host:port,[host:port...] [OPTIONS]
 KQM is a command line tool to monitor Apache Kafka for lags.
 It also comes with an option to send the lag statistics to Statsd.
 
-Option										Description
-------										-----------
---statsd-addr								Use this option if you need to send
-											the lag statistics to Statsd.
---statsd-prefix								This option is REQUIRED IF
-											--statsd-addr is specified.
---read-interval								Specify the interval of calculating
-											the lag statistics (in seconds).
-											DEFAULT: 120 seconds
+Option              Description
+------              -----------
+--statsd-addr       Use this option if you need to send
+                    the lag statistics to Statsd.
+
+--statsd-prefix     This option is REQUIRED IF
+                    --statsd-addr is specified.
+
+--read-interval     Specify the interval of calculating
+                    the lag statistics (in seconds).
+                    DEFAULT: 120 seconds
 `
 
 var flagProps = map[string]string{
