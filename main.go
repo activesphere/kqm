@@ -76,6 +76,7 @@ func parseCLIArgs(args []string) (*QMConfig, error) {
 		return nil, fmt.Errorf("Please specify brokers")
 	}
 	brokers = strings.Split(brokerStr, ",")
+	fmt.Println(brokers)
 
 	cfg := &QMConfig{
 		KafkaCfg: KafkaConfig{
