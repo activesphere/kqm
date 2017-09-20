@@ -71,8 +71,7 @@ func parseCLIArgs(args []string) (*QMConfig, error) {
 
 	brokerStr, ok := propVals["brokers"]
 	if !ok {
-		return nil, fmt.Errorf(`Please specify brokers. Example:
-			kqm --brokers localhost:9092,localhost:9093`)
+		return nil, fmt.Errorf("Please specify brokers")
 	}
 	brokers = strings.Split(brokerStr, ",")
 
