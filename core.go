@@ -1,15 +1,15 @@
 package main
 
 import (
-	"time"
-	"fmt"
-	"sync"
 	"bytes"
 	"encoding/binary"
-	"log"
-	"golang.org/x/sync/syncmap"
+	"fmt"
 	"github.com/Shopify/sarama"
 	"github.com/quipo/statsd"
+	"golang.org/x/sync/syncmap"
+	"log"
+	"sync"
+	"time"
 )
 
 // ConsumerOffsetTopic : provides the topic name of the Offset Topic.
@@ -43,7 +43,7 @@ func RetryWithChannel(cfg *QMConfig, title string, fn func(ec chan error) error)
 			time.Sleep(cfg.ReadInterval)
 			continue
 		}
-		err = <- errorChannel
+		err = <-errorChannel
 		if err != nil {
 			log.Println("Retrying due to a error received from channel:", title)
 			time.Sleep(cfg.ReadInterval)
@@ -134,7 +134,7 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 
 	consumeMessage := func(pConsumers []*PartitionConsumer, index int) {
 		// Burrow-based Consumer Offset Message parser function.
-		formatAndStoreMessage := func (message *sarama.ConsumerMessage) error {
+		formatAndStoreMessage := func(message *sarama.ConsumerMessage) error {
 			readString := func(buf *bytes.Buffer) (string, error) {
 				var strlen uint16
 				err := binary.Read(buf, binary.BigEndian, &strlen)
@@ -150,9 +150,9 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 			}
 
 			var (
-				keyver, valver uint16
-				group, topic string
-				partition uint32
+				keyver, valver    uint16
+				group, topic      string
+				partition         uint32
 				offset, timestamp uint64
 			)
 
@@ -216,7 +216,7 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 	}
 
 	checkErrors := func(pConsumers []*PartitionConsumer, index int) {
-		consumerError := <- pConsumers[index].Handle.Errors()
+		consumerError := <-pConsumers[index].Handle.Errors()
 		if consumerError != nil {
 			errorChannel <- consumerError.Err
 		}
@@ -245,9 +245,9 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 			return err
 		}
 		partitionConsumers = append(partitionConsumers, &PartitionConsumer{
-			Handle: pConsumer,
+			Handle:      pConsumer,
 			HandleMutex: &sync.Mutex{},
-			isClosed: false,
+			isClosed:    false,
 		})
 	}
 
@@ -277,7 +277,7 @@ func (qm *QueueMonitor) GetBrokerOffsets() error {
 
 			if _, ok := brokerOffsetRequests[leaderBrokerID]; !ok {
 				brokerOffsetRequests[leaderBrokerID] = BrokerOffsetRequest{
-					Broker: leaderBroker,
+					Broker:        leaderBroker,
 					OffsetRequest: &sarama.OffsetRequest{},
 				}
 			} else {
@@ -302,9 +302,9 @@ func (qm *QueueMonitor) GetBrokerOffsets() error {
 					continue
 				}
 				brokerOffset := &PartitionOffset{
-					Topic: topic,
+					Topic:     topic,
 					Partition: partition,
-					Offset: offsetResponseBlock.Offsets[0], // Version 0
+					Offset:    offsetResponseBlock.Offsets[0], // Version 0
 					Timestamp: offsetResponseBlock.Timestamp,
 				}
 				qm.storeBrokerOffset(brokerOffset)
@@ -369,10 +369,10 @@ func (qm *QueueMonitor) computeLag(brokerOffsetMap *syncmap.Map, consumerOffsetM
 					return true
 				}
 				go qm.sendGaugeToStatsd(stat, lag)
-				log.Printf("\n+++++++++(Topic: %s, Partn: %d)++++++++++++" +
-					"\nBroker Offset: %d" +
-					"\nConsumer Offset: %d" +
-					"\nLag: %d" +
+				log.Printf("\n+++++++++(Topic: %s, Partn: %d)++++++++++++"+
+					"\nBroker Offset: %d"+
+					"\nConsumer Offset: %d"+
+					"\nLag: %d"+
 					"\n++++++++++(Group: %s)+++++++++++",
 					topic, partition, brokerOffset, consumerOffset, lag, group)
 
@@ -417,4 +417,3 @@ func (qm *QueueMonitor) sendGaugeToStatsd(stat string, value int64) {
 	}
 	log.Printf("Gauge sent to Statsd: %s=%d", stat, value)
 }
-

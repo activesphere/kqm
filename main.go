@@ -3,9 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
-	"strconv"
 )
 
 var description = `
@@ -26,10 +26,10 @@ Option										Description
 `
 
 var flagProps = map[string]string{
-	"--brokers":		"brokers",
-	"--statsd-addr":	"statsdAddr",
-	"--statsd-prefix":	"statsdPrefix",
-	"--read-interval":	"readInterval",
+	"--brokers":       "brokers",
+	"--statsd-addr":   "statsdAddr",
+	"--statsd-prefix": "statsdPrefix",
+	"--read-interval": "readInterval",
 }
 
 func parseCLIArgs(args []string) (*QMConfig, error) {
@@ -49,23 +49,23 @@ func parseCLIArgs(args []string) (*QMConfig, error) {
 	argsLen := len(args)
 	propVals := make(map[string]string)
 
-	if (argsLen - 1) % 2 != 0 {
+	if (argsLen-1)%2 != 0 {
 		return nil, fmt.Errorf("Please specify value for each flag")
 	}
 
-	for i := 1; i < argsLen - 1; {
+	for i := 1; i < argsLen-1; {
 		flag, ok := flagProps[args[i]]
 		if !ok {
 			return nil, fmt.Errorf("Invalid flag: %s", args[i])
 		}
-		val := args[i + 1]
+		val := args[i+1]
 		propVals[flag] = val
 		i += 2
 	}
 
 	var (
-		brokers []string
-		readInterval int
+		brokers                  []string
+		readInterval             int
 		statsdAddr, statsdPrefix string
 	)
 
@@ -83,7 +83,7 @@ func parseCLIArgs(args []string) (*QMConfig, error) {
 	}
 
 	readInterval, ok, err := getInt(propVals, "readInterval")
-	if(!ok) {
+	if !ok {
 		return cfg, nil
 	}
 	if err != nil {
@@ -96,7 +96,7 @@ func parseCLIArgs(args []string) (*QMConfig, error) {
 	if (hasAddr && !hasPrefix) || (!hasAddr && hasPrefix) {
 		return cfg, fmt.Errorf("Addr and Prefix both required for Statsd")
 	}
-	cfg.StatsdCfg = StatsdConfig{ Addr: statsdAddr, Prefix: statsdPrefix }
+	cfg.StatsdCfg = StatsdConfig{Addr: statsdAddr, Prefix: statsdPrefix}
 
 	return cfg, nil
 }
