@@ -5,11 +5,19 @@ import (
 	"log"
 	"time"
 	"github.com/Shopify/sarama"
+	"github.com/quipo/statsd"
+	"golang.org/x/sync/syncmap"
 )
 
-// Monitor : Interface for monitor types.
-type Monitor interface {
-	Start(readInterval time.Duration, retryInterval time.Duration)
+// QueueMonitor : Defines the type for Kafka Queue Monitor implementation.
+type QueueMonitor struct {
+	Client                    sarama.Client
+	wgConsumerMessages        sync.WaitGroup
+	ConsumerOffsetStore       *syncmap.Map
+	wgBrokerOffsetResponse    sync.WaitGroup
+	BrokerOffsetStore         *syncmap.Map
+	StatsdClient              *statsd.StatsdClient
+	Config                    *QMConfig
 }
 
 // PartitionOffset : Defines a type for Partition Offset
@@ -62,8 +70,8 @@ type StatsdConfig struct {
 	Prefix  string
 }
 
-// QSMConfig : Aggregated type for all configuration required for KQSM.
-type QSMConfig struct {
+// QMConfig : Aggregated type for all configuration required for KQM.
+type QMConfig struct {
 	KafkaCfg           KafkaConfig
 	StatsdCfg          StatsdConfig
 	ReadInterval       time.Duration

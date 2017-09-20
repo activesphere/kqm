@@ -15,21 +15,9 @@ import (
 // ConsumerOffsetTopic : provides the topic name of the Offset Topic.
 const ConsumerOffsetTopic = "__consumer_offsets"
 
-// QueueSizeMonitor : Defines the type for Kafka Queue Size
-// Monitor implementation using Sarama.
-type QueueSizeMonitor struct {
-	Client                    sarama.Client
-	wgConsumerMessages        sync.WaitGroup
-	ConsumerOffsetStore       *syncmap.Map
-	wgBrokerOffsetResponse    sync.WaitGroup
-	BrokerOffsetStore         *syncmap.Map
-	StatsdClient              *statsd.StatsdClient
-	Config                    *QSMConfig
-}
-
 // Retry : It retries the func passed an argument based on the whether or not
 // the the fn returns an error.
-func Retry(cfg *QSMConfig, title string, fn func() error) {
+func Retry(cfg *QMConfig, title string, fn func() error) {
 	for {
 		err := fn()
 		if err != nil {
@@ -45,7 +33,7 @@ func Retry(cfg *QSMConfig, title string, fn func() error) {
 // RetryWithChannel : It retries the func passed an argument
 // based on the whether the the fn returns an error or the
 // Error channel receives an error or not.
-func RetryWithChannel(cfg *QSMConfig, title string, fn func(ec chan error) error) {
+func RetryWithChannel(cfg *QMConfig, title string, fn func(ec chan error) error) {
 	errorChannel := make(chan error)
 	var err error
 	for {
@@ -68,26 +56,26 @@ func RetryWithChannel(cfg *QSMConfig, title string, fn func(ec chan error) error
 
 // Start : Initiates the monitoring procedure, prints out the lag results
 // and sends the results to Statsd.
-func Start(cfg *QSMConfig) {
-	qsm, err := NewQueueSizeMonitor(cfg)
+func Start(cfg *QMConfig) {
+	qm, err := NewQueueMonitor(cfg)
 	if err != nil {
-		log.Println("Error while creating QSM instance.", err)
+		log.Println("Error while creating QueueMonitor instance.", err)
 		return
 	}
 
 	go func() {
 		RetryWithChannel(cfg, "CONSUMER_OFFSETS", func(ec chan error) error {
-			return qsm.GetConsumerOffsets(ec)
+			return qm.GetConsumerOffsets(ec)
 		})
 	}()
 
 	for {
 		Retry(cfg, "REPORT_LAG", func() error {
-			err := qsm.GetBrokerOffsets()
+			err := qm.GetBrokerOffsets()
 			if err != nil {
 				return err
 			}
-			err = qsm.computeLag(qsm.BrokerOffsetStore, qsm.ConsumerOffsetStore)
+			err = qm.computeLag(qm.BrokerOffsetStore, qm.ConsumerOffsetStore)
 			if err != nil {
 				return err
 			}
@@ -97,10 +85,10 @@ func Start(cfg *QSMConfig) {
 	}
 }
 
-// NewQueueSizeMonitor : Returns a QueueSizeMonitor with an initialized client
+// NewQueueMonitor : Returns a QueueMonitor with an initialized client
 // based on the comma-separated brokers (eg. "localhost:9092") along with
 // the Statsd instance address (eg. "localhost:8125").
-func NewQueueSizeMonitor(cfg *QSMConfig) (*QueueSizeMonitor, error) {
+func NewQueueMonitor(cfg *QMConfig) (*QueueMonitor, error) {
 
 	config := sarama.NewConfig()
 	// Setting Consumer.Return.Errors to true enables sending the Partition
@@ -117,18 +105,18 @@ func NewQueueSizeMonitor(cfg *QSMConfig) (*QueueSizeMonitor, error) {
 		return nil, err
 	}
 
-	qsm := &QueueSizeMonitor{}
-	qsm.Client = client
-	qsm.ConsumerOffsetStore = new(syncmap.Map)
-	qsm.BrokerOffsetStore = new(syncmap.Map)
-	qsm.StatsdClient = statsdClient
-	qsm.Config = cfg
-	return qsm, err
+	qm := &QueueMonitor{}
+	qm.Client = client
+	qm.ConsumerOffsetStore = new(syncmap.Map)
+	qm.BrokerOffsetStore = new(syncmap.Map)
+	qm.StatsdClient = statsdClient
+	qm.Config = cfg
+	return qm, err
 }
 
 // GetConsumerOffsets : Subcribes to Offset Topic and parses messages to
 // obtains Consumer Offsets.
-func (qsm *QueueSizeMonitor) GetConsumerOffsets(errorChannel chan error) error {
+func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 	log.Println("Started getting consumer partition offsets...")
 
 	closePartitionConsumers := func(pConsumers []*PartitionConsumer) {
@@ -209,7 +197,7 @@ func (qsm *QueueSizeMonitor) GetConsumerOffsets(errorChannel chan error) error {
 				Offset:    int64(offset),
 			}
 
-			qsm.storeConsumerOffset(partitionOffset)
+			qm.storeConsumerOffset(partitionOffset)
 			log.Println("Consumer Offset: ", partitionOffset.Offset)
 			return nil
 		}
@@ -225,13 +213,13 @@ func (qsm *QueueSizeMonitor) GetConsumerOffsets(errorChannel chan error) error {
 		closePartitionConsumers(pConsumers)
 	}
 
-	partitions, err := qsm.Client.Partitions(ConsumerOffsetTopic)
+	partitions, err := qm.Client.Partitions(ConsumerOffsetTopic)
 	if err != nil {
 		log.Println("Error occured while getting client partitions.", err)
 		return err
 	}
 
-	consumer, err := sarama.NewConsumerFromClient(qsm.Client)
+	consumer, err := sarama.NewConsumerFromClient(qm.Client)
 	if err != nil {
 		log.Println("Error occured while creating new client consumer.", err)
 		return err
@@ -263,14 +251,14 @@ func (qsm *QueueSizeMonitor) GetConsumerOffsets(errorChannel chan error) error {
 
 // GetBrokerOffsets : Finds out the leader brokers for the partitions and
 // gets the latest commited offsets.
-func (qsm *QueueSizeMonitor) GetBrokerOffsets() error {
+func (qm *QueueMonitor) GetBrokerOffsets() error {
 
-	tpMap := qsm.getTopicsAndPartitions(qsm.ConsumerOffsetStore)
+	tpMap := qm.getTopicsAndPartitions(qm.ConsumerOffsetStore)
 	brokerOffsetRequests := make(map[int32]BrokerOffsetRequest)
 
 	for topic, partitions := range tpMap {
 		for _, partition := range partitions {
-			leaderBroker, err := qsm.Client.Leader(topic, partition)
+			leaderBroker, err := qm.Client.Leader(topic, partition)
 			if err != nil {
 				log.Println("Error occured while fetching leader broker.", err)
 				return err
@@ -309,7 +297,7 @@ func (qsm *QueueSizeMonitor) GetBrokerOffsets() error {
 					Offset: offsetResponseBlock.Offsets[0], // Version 0
 					Timestamp: offsetResponseBlock.Timestamp,
 				}
-				qsm.storeBrokerOffset(brokerOffset)
+				qm.storeBrokerOffset(brokerOffset)
 			}
 		}
 		return nil
@@ -325,7 +313,7 @@ func (qsm *QueueSizeMonitor) GetBrokerOffsets() error {
 }
 
 // Fetches topics and their corresponding partitions.
-func (qsm *QueueSizeMonitor) getTopicsAndPartitions(offsetStore *syncmap.Map) map[string][]int32 {
+func (qm *QueueMonitor) getTopicsAndPartitions(offsetStore *syncmap.Map) map[string][]int32 {
 	tpMap := make(map[string][]int32)
 	offsetStore.Range(func(_, gbodyI interface{}) bool {
 		gbodyI.(*syncmap.Map).Range(func(topicI, tbodyI interface{}) bool {
@@ -342,7 +330,7 @@ func (qsm *QueueSizeMonitor) getTopicsAndPartitions(offsetStore *syncmap.Map) ma
 }
 
 // Computes the lag and sends the data as a gauge to Statsd.
-func (qsm *QueueSizeMonitor) computeLag(brokerOffsetMap *syncmap.Map, consumerOffsetMap *syncmap.Map) error {
+func (qm *QueueMonitor) computeLag(brokerOffsetMap *syncmap.Map, consumerOffsetMap *syncmap.Map) error {
 	consumerOffsetMap.Range(func(groupI, gbodyI interface{}) bool {
 		group := groupI.(string)
 		gbodyI.(*syncmap.Map).Range(func(topicI, tbodyI interface{}) bool {
@@ -359,12 +347,12 @@ func (qsm *QueueSizeMonitor) computeLag(brokerOffsetMap *syncmap.Map, consumerOf
 				lag := brokerOffset - consumerOffset
 
 				stat := fmt.Sprintf("%s.group.%s.%s.%d",
-					qsm.Config.StatsdCfg.Prefix, group, topic, partition)
+					qm.Config.StatsdCfg.Prefix, group, topic, partition)
 				if lag < 0 {
 					log.Printf("Negative Lag received for %s: %d", stat, lag)
 					return true
 				}
-				go qsm.sendGaugeToStatsd(stat, lag)
+				go qm.sendGaugeToStatsd(stat, lag)
 				log.Printf("\n+++++++++(Topic: %s, Partn: %d)++++++++++++" +
 					"\nBroker Offset: %d" +
 					"\nConsumer Offset: %d" +
@@ -382,10 +370,10 @@ func (qsm *QueueSizeMonitor) computeLag(brokerOffsetMap *syncmap.Map, consumerOf
 }
 
 // Store newly received consumer offset.
-func (qsm *QueueSizeMonitor) storeConsumerOffset(newOffset *PartitionOffset) {
+func (qm *QueueMonitor) storeConsumerOffset(newOffset *PartitionOffset) {
 	group, topic, partition, offset := newOffset.Group, newOffset.Topic,
 		newOffset.Partition, newOffset.Offset
-	tmp, _ := qsm.ConsumerOffsetStore.LoadOrStore(group, new(syncmap.Map))
+	tmp, _ := qm.ConsumerOffsetStore.LoadOrStore(group, new(syncmap.Map))
 	tpOffsetMap := tmp.(*syncmap.Map)
 	tmp, _ = tpOffsetMap.LoadOrStore(topic, new(syncmap.Map))
 	pOffsetMap := tmp.(*syncmap.Map)
@@ -393,20 +381,20 @@ func (qsm *QueueSizeMonitor) storeConsumerOffset(newOffset *PartitionOffset) {
 }
 
 // Store newly received broker offset.
-func (qsm *QueueSizeMonitor) storeBrokerOffset(newOffset *PartitionOffset) {
+func (qm *QueueMonitor) storeBrokerOffset(newOffset *PartitionOffset) {
 	topic, partition, offset := newOffset.Topic, newOffset.Partition, newOffset.Offset
-	tmp, _ := qsm.BrokerOffsetStore.LoadOrStore(topic, new(syncmap.Map))
+	tmp, _ := qm.BrokerOffsetStore.LoadOrStore(topic, new(syncmap.Map))
 	pOffsetMap := tmp.(*syncmap.Map)
 	pOffsetMap.Store(partition, offset)
 }
 
 // Sends the gauge to Statsd.
-func (qsm *QueueSizeMonitor) sendGaugeToStatsd(stat string, value int64) {
-	if qsm.StatsdClient == nil {
+func (qm *QueueMonitor) sendGaugeToStatsd(stat string, value int64) {
+	if qm.StatsdClient == nil {
 		log.Println("Statsd Client not initialized yet.")
 		return
 	}
-	err := qsm.StatsdClient.Gauge(stat, value)
+	err := qm.StatsdClient.Gauge(stat, value)
 	if err != nil {
 		log.Println("Error while sending gauge to statsd:", err)
 		return
