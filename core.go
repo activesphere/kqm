@@ -119,10 +119,17 @@ func NewQueueMonitor(cfg *QMConfig) (*QueueMonitor, error) {
 func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 	log.Println("Started getting consumer partition offsets...")
 
+	pConsumersClosed := false
+
 	closePartitionConsumers := func(pConsumers []*PartitionConsumer) {
+		if pConsumersClosed {
+			log.Println("Partition Consumers are already closed.")
+			return
+		}
 		for _, pConsumer := range pConsumers {
 			pConsumer.AsyncClose()
 		}
+		pConsumersClosed = true
 	}
 
 	consumeMessage := func(pConsumers []*PartitionConsumer, index int) {
