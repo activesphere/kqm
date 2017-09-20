@@ -339,9 +339,15 @@ func (qm *QueueMonitor) computeLag(brokerOffsetMap *syncmap.Map, consumerOffsetM
 				partition := partitionI.(int32)
 				consumerOffset := offsetI.(int64)
 
-				tmp, _ := brokerOffsetMap.Load(topic)
+				tmp, ok := brokerOffsetMap.Load(topic)
+				if !ok {
+					return true
+				}
 				brokerPMap := tmp.(*syncmap.Map)
-				tmp, _ = brokerPMap.Load(partition)
+				tmp, ok = brokerPMap.Load(partition)
+				if !ok {
+					return true
+				}
 				brokerOffset := tmp.(int64)
 
 				lag := brokerOffset - consumerOffset
