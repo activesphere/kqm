@@ -16,22 +16,6 @@ go get -u github.com/activesphere/kqm
 Usage
 -------------------
 ```
-import (
-	"time"
-	"github.com/activesphere/kqm"
-)
-
-cfg := &QMConfig{
-	KafkaCfg: KafkaConfig{
-		Brokers: []string{"localhost:9092"},
-	},
-	StatsdCfg: StatsdConfig{
-		Addr: "172.19.0.3:8125",
-		Prefix: "kqm_prefix",
-	},
-	ReadInterval: 2 * time.Minute,
-}
-Start(cfg)
+kqm --brokers localhost:9092 --read-interval 1 \
+	--statsd-addr localhost:8125 --statsd-prefix prefix_demo
 ```
-
-**Use ^C to terminate the execution.**
