@@ -95,7 +95,10 @@ func parseCLIArgs(args []string) (*QMConfig, error) {
 
 	statsdAddr, hasAddr := propVals["statsdAddr"]
 	statsdPrefix, hasPrefix := propVals["statsdPrefix"]
-	if (hasAddr && !hasPrefix) || (!hasAddr && hasPrefix) {
+	if !(hasAddr || hasPrefix) {
+		return cfg, nil
+	}
+	if !(hasAddr && hasPrefix)  {
 		return cfg, fmt.Errorf("Addr and Prefix both required for Statsd")
 	}
 	cfg.StatsdCfg = StatsdConfig{

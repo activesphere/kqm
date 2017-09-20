@@ -94,7 +94,6 @@ func NewQueueMonitor(cfg *QMConfig) (*QueueMonitor, error) {
 	// Setting Consumer.Return.Errors to true enables sending the Partition
 	// Consumer Errors to the Error Channel instead of logging them.
 	config.Consumer.Return.Errors = true
-	fmt.Println(cfg.KafkaCfg.Brokers)
 	client, err := sarama.NewClient(cfg.KafkaCfg.Brokers, config)
 	if err != nil {
 		return nil, err
@@ -107,7 +106,6 @@ func NewQueueMonitor(cfg *QMConfig) (*QueueMonitor, error) {
 	qm.Config = cfg
 
 	if cfg.StatsdCfg.Enabled {
-		log.Println("Enabled:", cfg.StatsdCfg.Enabled)
 		statsdClient := statsd.NewStatsdClient(cfg.StatsdCfg.Addr,
 			cfg.StatsdCfg.Prefix)
 		err = statsdClient.CreateSocket()
