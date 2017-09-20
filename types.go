@@ -66,8 +66,9 @@ type KafkaConfig struct {
 
 // StatsdConfig : Type for Statsd Client Configuration.
 type StatsdConfig struct {
-	Addr   string
-	Prefix string
+	Enabled bool
+	Addr    string
+	Prefix  string
 }
 
 // QMConfig : Aggregated type for all configuration required for KQM.

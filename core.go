@@ -99,18 +99,22 @@ func NewQueueMonitor(cfg *QMConfig) (*QueueMonitor, error) {
 		return nil, err
 	}
 
-	statsdClient := statsd.NewStatsdClient(cfg.StatsdCfg.Addr, cfg.StatsdCfg.Prefix)
-	err = statsdClient.CreateSocket()
-	if err != nil {
-		return nil, err
-	}
-
 	qm := &QueueMonitor{}
 	qm.Client = client
 	qm.ConsumerOffsetStore = new(syncmap.Map)
 	qm.BrokerOffsetStore = new(syncmap.Map)
-	qm.StatsdClient = statsdClient
 	qm.Config = cfg
+
+	if cfg.StatsdCfg.Enabled {
+		statsdClient := statsd.NewStatsdClient(cfg.StatsdCfg.Addr,
+			cfg.StatsdCfg.Prefix)
+		err = statsdClient.CreateSocket()
+		if err != nil {
+			return nil, err
+		}
+		qm.StatsdClient = statsdClient
+	}
+
 	return qm, err
 }
 
@@ -362,13 +366,16 @@ func (qm *QueueMonitor) computeLag(brokerOffsetMap *syncmap.Map, consumerOffsetM
 
 				lag := brokerOffset - consumerOffset
 
-				stat := fmt.Sprintf("%s.group.%s.%s.%d",
-					qm.Config.StatsdCfg.Prefix, group, topic, partition)
-				if lag < 0 {
-					log.Printf("Negative Lag received for %s: %d", stat, lag)
-					return true
+				if qm.Config.StatsdCfg.Enabled {
+					stat := fmt.Sprintf("%s.group.%s.%s.%d",
+						qm.Config.StatsdCfg.Prefix, group, topic, partition)
+					if lag < 0 {
+						log.Printf("Negative Lag received for %s: %d",
+							stat, lag)
+						return true
+					}
+					go qm.sendGaugeToStatsd(stat, lag)
 				}
-				go qm.sendGaugeToStatsd(stat, lag)
 				log.Printf("\n+++++++++(Topic: %s, Partn: %d)++++++++++++"+
 					"\nBroker Offset: %d"+
 					"\nConsumer Offset: %d"+
