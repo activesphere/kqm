@@ -8,7 +8,6 @@ import (
 	"github.com/quipo/statsd"
 	"golang.org/x/sync/syncmap"
 	"log"
-	"sync"
 	"time"
 )
 
@@ -123,20 +122,7 @@ func NewQueueMonitor(cfg *QMConfig) (*QueueMonitor, error) {
 func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 	log.Println("Started getting consumer partition offsets...")
 
-	pConsumersClosed := false
-
-	closePartitionConsumers := func(pConsumers []*PartitionConsumer) {
-		if pConsumersClosed {
-			log.Println("Partition Consumers are already closed.")
-			return
-		}
-		for _, pConsumer := range pConsumers {
-			pConsumer.AsyncClose()
-		}
-		pConsumersClosed = true
-	}
-
-	consumeMessage := func(pConsumers []*PartitionConsumer, index int) {
+	consumeMessage := func(pConsumers *PartitionConsumers, index int) {
 		// Burrow-based Consumer Offset Message parser function.
 		formatAndStoreMessage := func(message *sarama.ConsumerMessage) error {
 			readString := func(buf *bytes.Buffer) (string, error) {
@@ -213,18 +199,18 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 			return nil
 		}
 
-		for message := range pConsumers[index].Handle.Messages() {
+		for message := range pConsumers.Handles[index].Messages() {
 			formatAndStoreMessage(message)
 		}
-		closePartitionConsumers(pConsumers)
+		pConsumers.AsyncCloseAll()
 	}
 
-	checkErrors := func(pConsumers []*PartitionConsumer, index int) {
-		consumerError := <-pConsumers[index].Handle.Errors()
+	checkErrors := func(pConsumers *PartitionConsumers, index int) {
+		consumerError := <-pConsumers.Handles[index].Errors()
 		if consumerError != nil {
 			errorChannel <- consumerError.Err
 		}
-		closePartitionConsumers(pConsumers)
+		pConsumers.AsyncCloseAll()
 	}
 
 	partitions, err := qm.Client.Partitions(ConsumerOffsetTopic)
@@ -239,25 +225,21 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 		return err
 	}
 
-	partitionConsumers := make([]*PartitionConsumer, 0)
+	partitionConsumers := PartitionConsumers{}
 
 	for _, partition := range partitions {
 		pConsumer, err := consumer.ConsumePartition(ConsumerOffsetTopic, partition, sarama.OffsetNewest)
 		if err != nil {
 			log.Println("Error occured while consuming partition.", err)
-			closePartitionConsumers(partitionConsumers)
+			partitionConsumers.AsyncCloseAll()
 			return err
 		}
-		partitionConsumers = append(partitionConsumers, &PartitionConsumer{
-			Handle:      pConsumer,
-			HandleMutex: &sync.Mutex{},
-			isClosed:    false,
-		})
+		partitionConsumers.Add(pConsumer)
 	}
 
-	for index := range partitionConsumers {
-		go consumeMessage(partitionConsumers, index)
-		go checkErrors(partitionConsumers, index)
+	for index := range partitionConsumers.Handles {
+		go consumeMessage(&partitionConsumers, index)
+		go checkErrors(&partitionConsumers, index)
 	}
 
 	return nil

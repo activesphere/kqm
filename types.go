@@ -35,28 +35,30 @@ type BrokerOffsetRequest struct {
 	OffsetRequest *sarama.OffsetRequest
 }
 
-// PartitionConsumer : Wrapper around sarama.PartitionConsumer
-type PartitionConsumer struct {
-	Handle      sarama.PartitionConsumer
-	HandleMutex *sync.Mutex
-	isClosed    bool
+// PartitionConsumers : Wrapper around a list of sarama.PartitionConsumer
+type PartitionConsumers struct {
+	Handles       []sarama.PartitionConsumer
+	mutex         *sync.Mutex
+	areClosed     bool
 }
 
-// AsyncClose : Wrapper around sarama.PartitionConsumer.AsyncClose()
-func (pc *PartitionConsumer) AsyncClose() {
-	defer pc.HandleMutex.Unlock()
-	pc.HandleMutex.Lock()
-	if pc.Handle == nil {
-		log.Println("Partition Consumer is uninitialized.")
+// Add : Appends a partition consumer to the consumers list.
+func (pc *PartitionConsumers) Add(pConsumer sarama.PartitionConsumer) {
+	pc.Handles = append(pc.Handles, pConsumer)
+}
+
+// AsyncCloseAll : Calls AsyncClose() on all Partition Consumers.
+func (pc *PartitionConsumers) AsyncCloseAll() {
+	defer pc.mutex.Unlock()
+	pc.mutex.Lock()
+	if pc.areClosed {
+		log.Println("Partition Consumers are already closed.")
 		return
 	}
-	if pc.isClosed {
-		log.Println("Partition Consumer is already closed.")
-		return
+	for _, pConsumer := range pc.Handles {
+		pConsumer.AsyncClose()
 	}
-	log.Println("Closing Partition Consumer...")
-	pc.Handle.AsyncClose()
-	pc.isClosed = true
+	pc.areClosed = true
 }
 
 // KafkaConfig : Type for Kafka Broker Configuration.
