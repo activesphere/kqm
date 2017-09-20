@@ -21,11 +21,8 @@ Option										Description
 --statsd-prefix								This option is REQUIRED IF
 											--statsd-addr is specified.
 --read-interval								Specify the interval of calculating
-											the lag statistics (in minutes).
-											DEFAULT: 2 minutes
---retry-interval							Specify the interval of retrying to
-											connect in case of a failure.
-											DEFAULT: 5 minutes
+											the lag statistics (in seconds).
+											DEFAULT: 120 seconds
 `
 
 var flagProps = map[string]string{
@@ -33,7 +30,6 @@ var flagProps = map[string]string{
 	"--statsd-addr":	"statsdAddr",
 	"--statsd-prefix":	"statsdPrefix",
 	"--read-interval":	"readInterval",
-	"--retry-interval":	"retryInterval",
 }
 
 func parseCLIArgs(args []string) (*QMConfig, error) {
@@ -69,7 +65,7 @@ func parseCLIArgs(args []string) (*QMConfig, error) {
 
 	var (
 		brokers []string
-		readInterval, retryInterval int
+		readInterval int
 		statsdAddr, statsdPrefix string
 	)
 
@@ -85,7 +81,6 @@ func parseCLIArgs(args []string) (*QMConfig, error) {
 			Brokers: brokers,
 		},
 		ReadInterval: 10 * time.Second,
-		RetryInterval: 5 * time.Second,
 	}
 
 	readInterval, ok, err := getInt(propVals, "readInterval")
@@ -95,16 +90,7 @@ func parseCLIArgs(args []string) (*QMConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Invalid value for flag: --read-interval")
 	}
-	cfg.ReadInterval = time.Duration(readInterval) * time.Minute
-
-	retryInterval, ok, err = getInt(propVals, "retryInterval")
-	if(!ok) {
-		return cfg, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("Invalid value for flag: --retry-interval")
-	}
-	cfg.RetryInterval = time.Duration(retryInterval) * time.Minute
+	cfg.ReadInterval = time.Duration(readInterval) * time.Second
 
 	statsdAddr, hasAddr := propVals["statsdAddr"]
 	statsdPrefix, hasPrefix := propVals["statsdPrefix"]

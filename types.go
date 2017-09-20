@@ -75,5 +75,4 @@ type QMConfig struct {
 	KafkaCfg           KafkaConfig
 	StatsdCfg          StatsdConfig
 	ReadInterval       time.Duration
-	RetryInterval      time.Duration
 }

@@ -30,7 +30,6 @@ cfg := &QMConfig{
 		Prefix: "kqm_prefix",
 	},
 	ReadInterval: 2 * time.Minute,
-	RetryInterval: 5 * time.Second,
 }
 Start(cfg)
 ```
