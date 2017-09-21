@@ -1,117 +1,79 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 )
 
 var description = `
-kqm --brokers host:port,[host:port...] [OPTIONS]
+kqm [OPTIONS] host:port [host:port]...
 
 KQM is a command line tool to monitor Apache Kafka for lags.
 It also comes with an option to send the lag statistics to Statsd.
 
-Option              Description
-------              -----------
---statsd-addr       Use this option if you need to send
-                    the lag statistics to Statsd.
+Option               Description
+------               -----------
+--stats-enabled      Statsd config will only be considered
+                     if this flag is set.
 
---statsd-prefix     This option is REQUIRED IF
-                    --statsd-addr is specified.
+--statsd-addr        Use this option if you need to send
+                     the lag statistics to Statsd.
 
---read-interval     Specify the interval of calculating
-                    the lag statistics (in seconds).
-                    DEFAULT: 120 seconds
+--statsd-prefix      This option is REQUIRED IF
+                     --statsd-addr is specified.
+
+--read-interval      Specify the interval of calculating
+                     the lag statistics (in seconds).
+                     Default: 120 seconds
 `
 
-var flagProps = map[string]string{
-	"--brokers":       "brokers",
-	"--statsd-addr":   "statsdAddr",
-	"--statsd-prefix": "statsdPrefix",
-	"--read-interval": "readInterval",
-}
-
-func parseCLIArgs(args []string) (*QMConfig, error) {
-
-	getInt := func(propVals map[string]string, key string) (int, bool, error) {
-		propVal, ok := propVals[key]
-		if !ok {
-			return -1, false, nil
-		}
-		result, err := strconv.Atoi(propVal)
-		if err != nil {
-			return -1, false, fmt.Errorf("Integer Conversion Failed")
-		}
-		return result, true, nil
-	}
-
-	argsLen := len(args)
-	propVals := make(map[string]string)
-
-	if (argsLen-1)%2 != 0 {
-		return nil, fmt.Errorf("Please specify value for each flag")
-	}
-
-	for i := 1; i < argsLen-1; {
-		flag, ok := flagProps[args[i]]
-		if !ok {
-			return nil, fmt.Errorf("Invalid flag: %s", args[i])
-		}
-		val := args[i+1]
-		propVals[flag] = val
-		i += 2
-	}
+func parseCommand() (*QMConfig, error) {
 
 	var (
 		brokers                  []string
-		readInterval             int
-		statsdAddr, statsdPrefix string
+		readInterval             *int
+		statsdEnabled            *bool
+		statsdAddr, statsdPrefix *string
 	)
 
-	brokerStr, ok := propVals["brokers"]
-	if !ok {
+	readInterval = flag.Int("read-interval", 120, "")
+	statsdEnabled = flag.Bool("statsd-enabled", false, "")
+	statsdAddr = flag.String("statsd-addr", "", "")
+	statsdPrefix = flag.String("statsd-prefix", "", "")
+	flag.Usage = func() {
+		fmt.Println(description)
+	}
+	flag.Parse()
+
+	brokers = flag.Args()
+	if len(brokers) == 0 {
 		return nil, fmt.Errorf("Please specify brokers")
 	}
-	brokers = strings.Split(brokerStr, ",")
+
+	if *statsdEnabled && (len(*statsdAddr) == 0 || len(*statsdPrefix) == 0) {
+		return nil, fmt.Errorf(
+			"Please specify --statsd-addr and --statsd-prefix")
+	}
 
 	cfg := &QMConfig{
 		KafkaCfg: KafkaConfig{
 			Brokers: brokers,
 		},
-		ReadInterval: 10 * time.Second,
-	}
-
-	readInterval, ok, err := getInt(propVals, "readInterval")
-	if !ok {
-		return cfg, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("Invalid value for flag: --read-interval")
-	}
-	cfg.ReadInterval = time.Duration(readInterval) * time.Second
-
-	statsdAddr, hasAddr := propVals["statsdAddr"]
-	statsdPrefix, hasPrefix := propVals["statsdPrefix"]
-	if !(hasAddr || hasPrefix) {
-		return cfg, nil
-	}
-	if !(hasAddr && hasPrefix) {
-		return cfg, fmt.Errorf("Addr and Prefix both required for Statsd")
-	}
-	cfg.StatsdCfg = StatsdConfig{
-		Enabled: true,
-		Addr:    statsdAddr,
-		Prefix:  statsdPrefix,
+		StatsdCfg: StatsdConfig{
+			Enabled: *statsdEnabled,
+			Addr:    *statsdAddr,
+			Prefix:  *statsdPrefix,
+		},
+		ReadInterval: time.Duration(*readInterval) * time.Second,
 	}
 
 	return cfg, nil
 }
 
 func main() {
-	cfg, err := parseCLIArgs(os.Args)
+	cfg, err := parseCommand()
 	if err != nil {
 		fmt.Printf("%s\n%s", err, description)
 		os.Exit(1)
