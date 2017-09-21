@@ -277,8 +277,7 @@ func (qm *QueueMonitor) lag(topic string, partition int32, brokerOffset int64) e
 			return false
 		}
 		lag := brokerOffset - offset
-		stat := fmt.Sprintf("%s.group.%s.%s.%d", qm.Config.StatsdCfg.Prefix,
-			group, topic, partition)
+		stat := fmt.Sprintf(".group.%s.%s.%d", group, topic, partition)
 		if lag < 0 {
 			log.Printf("Negative Lag received for %s: %d", stat, lag)
 		} else {
