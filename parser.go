@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"log"
 
 	"github.com/Shopify/sarama"
 )
@@ -50,6 +51,7 @@ func formatConsumerMessage(message *sarama.ConsumerMessage) (*PartitionOffset, e
 	case 2:
 		return nil, err
 	default:
+		log.Println("Unknown Version Key:", keyver)
 		return nil, err
 	}
 
