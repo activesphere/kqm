@@ -234,13 +234,10 @@ func (qm *QueueMonitor) GetBrokerOffsets() error {
 // Fetches topics and their corresponding partitions.
 func (qm *QueueMonitor) getTopicsAndPartitions(offsetStore *syncmap.Map) map[string][]int32 {
 	tpMap := make(map[string][]int32)
-	offsetStore.Range(func(_, gbodyI interface{}) bool {
-		gbodyI.(*syncmap.Map).Range(func(topicI, tbodyI interface{}) bool {
-			topic := topicI.(string)
-			tbodyI.(*syncmap.Map).Range(func(partitionI, _ interface{}) bool {
-				tpMap[topic] = append(tpMap[topic], partitionI.(int32))
-				return true
-			})
+	offsetStore.Range(func(topicI, tbodyI interface{}) bool {
+		topic := topicI.(string)
+		tbodyI.(*syncmap.Map).Range(func(partitionI, _ interface{}) bool {
+			tpMap[topic] = append(tpMap[topic], partitionI.(int32))
 			return true
 		})
 		return true
