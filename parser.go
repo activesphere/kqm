@@ -49,6 +49,7 @@ func formatConsumerMessage(message *sarama.ConsumerMessage) (*PartitionOffset, e
 			return nil, err
 		}
 	case 2:
+		log.Println("Version 2 is unsupported.")
 		return nil, err
 	default:
 		log.Println("Unknown Version Key:", keyver)
