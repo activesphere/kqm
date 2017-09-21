@@ -1,12 +1,12 @@
 package main
 
 import (
+	"sync"
+	"time"
+
 	"github.com/Shopify/sarama"
 	"github.com/quipo/statsd"
 	"golang.org/x/sync/syncmap"
-	"log"
-	"sync"
-	"time"
 )
 
 // QueueMonitor : Defines the type for Kafka Queue Monitor implementation.
@@ -52,7 +52,6 @@ func (pc *PartitionConsumers) AsyncCloseAll() {
 	defer pc.mutex.Unlock()
 	pc.mutex.Lock()
 	if pc.areClosed {
-		log.Println("Partition Consumers are already closed.")
 		return
 	}
 	for _, pConsumer := range pc.Handles {

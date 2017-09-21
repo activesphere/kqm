@@ -1,15 +1,14 @@
 package main
 
 import (
-	"bytes"
-	"encoding/binary"
 	"fmt"
-	"github.com/Shopify/sarama"
-	"github.com/quipo/statsd"
-	"golang.org/x/sync/syncmap"
 	"log"
 	"sync"
 	"time"
+
+	"github.com/Shopify/sarama"
+	"github.com/quipo/statsd"
+	"golang.org/x/sync/syncmap"
 )
 
 // ConsumerOffsetTopic : provides the topic name of the Offset Topic.
@@ -124,94 +123,24 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 	log.Println("Started getting consumer partition offsets...")
 
 	consumeMessage := func(pConsumers *PartitionConsumers, index int) {
-		// Burrow-based Consumer Offset Message parser function.
-		formatAndStoreMessage := func(message *sarama.ConsumerMessage) error {
-			readString := func(buf *bytes.Buffer) (string, error) {
-				var strlen uint16
-				err := binary.Read(buf, binary.BigEndian, &strlen)
-				if err != nil {
-					return "", err
-				}
-				strbytes := make([]byte, strlen)
-				n, err := buf.Read(strbytes)
-				if (err != nil) || (n != int(strlen)) {
-					return "", fmt.Errorf("string underflow")
-				}
-				return string(strbytes), nil
-			}
-
-			var (
-				keyver, valver    uint16
-				group, topic      string
-				partition         uint32
-				offset, timestamp uint64
-			)
-
-			buf := bytes.NewBuffer(message.Key)
-			err := binary.Read(buf, binary.BigEndian, &keyver)
-			switch keyver {
-			case 0, 1:
-				group, err = readString(buf)
-				if err != nil {
-					return err
-				}
-				topic, err = readString(buf)
-				if err != nil {
-					return err
-				}
-				err = binary.Read(buf, binary.BigEndian, &partition)
-				if err != nil {
-					return err
-				}
-			case 2:
-				return err
-			default:
-				return err
-			}
-
-			buf = bytes.NewBuffer(message.Value)
-			err = binary.Read(buf, binary.BigEndian, &valver)
-			if (err != nil) || ((valver != 0) && (valver != 1)) {
-				return err
-			}
-			err = binary.Read(buf, binary.BigEndian, &offset)
-			if err != nil {
-				return err
-			}
-			_, err = readString(buf)
-			if err != nil {
-				return err
-			}
-			err = binary.Read(buf, binary.BigEndian, &timestamp)
-			if err != nil {
-				return err
-			}
-
-			partitionOffset := &PartitionOffset{
-				Topic:     topic,
-				Partition: int32(partition),
-				Group:     group,
-				Timestamp: int64(timestamp),
-				Offset:    int64(offset),
-			}
-
-			qm.storeConsumerOffset(partitionOffset)
-			log.Println("Consumer Offset: ", partitionOffset.Offset)
-			return nil
-		}
-
+		defer pConsumers.AsyncCloseAll()
 		for message := range pConsumers.Handles[index].Messages() {
-			formatAndStoreMessage(message)
+			partitionOffset, err := formatConsumerMessage(message)
+			if err != nil {
+				log.Println("Error while parsing consumer message.")
+				continue
+			}
+			qm.storeConsumerOffset(partitionOffset)
+			log.Printf(".")
 		}
-		pConsumers.AsyncCloseAll()
 	}
 
 	checkErrors := func(pConsumers *PartitionConsumers, index int) {
+		defer pConsumers.AsyncCloseAll()
 		consumerError := <-pConsumers.Handles[index].Errors()
 		if consumerError != nil {
 			errorChannel <- consumerError.Err
 		}
-		pConsumers.AsyncCloseAll()
 	}
 
 	partitions, err := qm.Client.Partitions(ConsumerOffsetTopic)
@@ -231,12 +160,12 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 		mutex:     &sync.Mutex{},
 		areClosed: false,
 	}
+	defer partitionConsumers.AsyncCloseAll()
 
 	for _, partition := range partitions {
 		pConsumer, err := consumer.ConsumePartition(ConsumerOffsetTopic, partition, sarama.OffsetOldest)
 		if err != nil {
 			log.Println("Error occured while consuming partition.", err)
-			partitionConsumers.AsyncCloseAll()
 			return err
 		}
 		partitionConsumers.Add(pConsumer)
