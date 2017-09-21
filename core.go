@@ -153,7 +153,6 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 		mutex:     &sync.Mutex{},
 		areClosed: false,
 	}
-	defer partitionConsumers.AsyncCloseAll()
 
 	for _, partition := range partitions {
 		pConsumer, err := consumer.ConsumePartition(ConsumerOffsetTopic,
