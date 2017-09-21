@@ -130,6 +130,10 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 				log.Println("Error while parsing consumer message.")
 				continue
 			}
+			if partitionOffset == nil {
+				log.Println("Partition Offset is nil")
+				continue
+			}
 			qm.storeConsumerOffset(partitionOffset)
 			log.Printf(".")
 		}
