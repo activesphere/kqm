@@ -19,16 +19,16 @@ func formatConsumerMessage(message *sarama.ConsumerMessage) (*PartitionOffset, e
 		strbytes := make([]byte, strlen)
 		n, err := buf.Read(strbytes)
 		if (err != nil) || (n != int(strlen)) {
-			return "", fmt.Errorf("string underflow")
+			return "", fmt.Errorf("String Underflow")
 		}
 		return string(strbytes), nil
 	}
 
 	var (
-		keyver, valver    uint16
-		group, topic      string
-		partition         uint32
-		offset, timestamp uint64
+		keyver, valver             uint16
+		group, topic               string
+		partition                  uint32
+		offset, timestamp, exptime uint64
 	)
 
 	buf := bytes.NewBuffer(message.Key)
@@ -70,6 +70,10 @@ func formatConsumerMessage(message *sarama.ConsumerMessage) (*PartitionOffset, e
 	if err != nil {
 		return nil, fmt.Errorf("Error reading timestamp from message value. Details: %s", err)
 	}
+	err = binary.Read(buf, binary.BigEndian, &exptime)
+	if err != nil {
+		return nil, fmt.Errorf("Error reading expiration time from message value. Details: %s", err)
+	}
 
 	partitionOffset := &PartitionOffset{
 		Topic:     topic,
@@ -78,5 +82,15 @@ func formatConsumerMessage(message *sarama.ConsumerMessage) (*PartitionOffset, e
 		Timestamp: int64(timestamp),
 		Offset:    int64(offset),
 	}
+
+	/*
+		Print statement below can be used to verify output as per the default Kafka Command:
+		kafka/bin/kafka-console-consumer.sh --topic __consumer_offsets --bootstrap-server \
+		localhost:9092 --formatter \
+		"kafka.coordinator.GroupMetadataManager\$OffsetsMessageFormatter" --from-beginning
+	*/
+	// fmt.Printf("[%s,%s,%d]::[OffsetMetadata[%d,NO_METADATA],CommitTime %d,ExpirationTime %d]\n",
+	// 	group, topic, int32(partition), int64(offset), int64(timestamp), int64(exptime))
+
 	return partitionOffset, nil
 }
