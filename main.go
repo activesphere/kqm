@@ -34,14 +34,12 @@ func parseCommand() (*QMConfig, error) {
 	var (
 		brokers                  []string
 		readInterval             *int
-		statsdEnabled            *bool
 		statsdAddr, statsdPrefix *string
 	)
 
 	readInterval = flag.Int("read-interval", 120, "")
-	statsdEnabled = flag.Bool("statsd-enabled", false, "")
-	statsdAddr = flag.String("statsd-addr", "", "")
-	statsdPrefix = flag.String("statsd-prefix", "", "")
+	statsdAddr = flag.String("statsd-addr", "localhost:8125", "")
+	statsdPrefix = flag.String("statsd-prefix", "kqm", "")
 	flag.Usage = func() {
 		fmt.Println(description)
 	}
@@ -52,23 +50,16 @@ func parseCommand() (*QMConfig, error) {
 		return nil, fmt.Errorf("Please specify brokers")
 	}
 
-	if *statsdEnabled && (len(*statsdAddr) == 0 || len(*statsdPrefix) == 0) {
-		return nil, fmt.Errorf(
-			"Please specify --statsd-addr and --statsd-prefix")
-	}
-
 	cfg := &QMConfig{
 		KafkaCfg: KafkaConfig{
 			Brokers: brokers,
 		},
 		StatsdCfg: StatsdConfig{
-			Enabled: *statsdEnabled,
-			Addr:    *statsdAddr,
-			Prefix:  *statsdPrefix,
+			Addr:   *statsdAddr,
+			Prefix: *statsdPrefix,
 		},
 		ReadInterval: time.Duration(*readInterval) * time.Second,
 	}
-
 	return cfg, nil
 }
 

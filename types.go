@@ -11,13 +11,10 @@ import (
 
 // QueueMonitor : Defines the type for Kafka Queue Monitor implementation.
 type QueueMonitor struct {
-	Client                 sarama.Client
-	wgConsumerMessages     sync.WaitGroup
-	ConsumerOffsetStore    *syncmap.Map
-	wgBrokerOffsetResponse sync.WaitGroup
-	BrokerOffsetStore      *syncmap.Map
-	StatsdClient           *statsd.StatsdClient
-	Config                 *QMConfig
+	Client       sarama.Client
+	StatsdClient *statsd.StatsdClient
+	Config       *QMConfig
+	OffsetStore  *syncmap.Map
 }
 
 // PartitionOffset : Defines a type for Partition Offset
@@ -67,9 +64,8 @@ type KafkaConfig struct {
 
 // StatsdConfig : Type for Statsd Client Configuration.
 type StatsdConfig struct {
-	Enabled bool
-	Addr    string
-	Prefix  string
+	Addr   string
+	Prefix string
 }
 
 // QMConfig : Aggregated type for all configuration required for KQM.

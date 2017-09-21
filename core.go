@@ -74,10 +74,6 @@ func Start(cfg *QMConfig) {
 			if err != nil {
 				return err
 			}
-			err = qm.computeLag(qm.BrokerOffsetStore, qm.ConsumerOffsetStore)
-			if err != nil {
-				return err
-			}
 			time.Sleep(cfg.ReadInterval)
 			return nil
 		})
@@ -100,20 +96,16 @@ func NewQueueMonitor(cfg *QMConfig) (*QueueMonitor, error) {
 
 	qm := &QueueMonitor{}
 	qm.Client = client
-	qm.ConsumerOffsetStore = new(syncmap.Map)
-	qm.BrokerOffsetStore = new(syncmap.Map)
+	qm.OffsetStore = new(syncmap.Map)
 	qm.Config = cfg
 
-	if cfg.StatsdCfg.Enabled {
-		statsdClient := statsd.NewStatsdClient(cfg.StatsdCfg.Addr,
-			cfg.StatsdCfg.Prefix)
-		err = statsdClient.CreateSocket()
-		if err != nil {
-			return nil, err
-		}
-		qm.StatsdClient = statsdClient
+	statsdClient := statsd.NewStatsdClient(cfg.StatsdCfg.Addr,
+		cfg.StatsdCfg.Prefix)
+	err = statsdClient.CreateSocket()
+	if err != nil {
+		return nil, err
 	}
-
+	qm.StatsdClient = statsdClient
 	return qm, err
 }
 
@@ -132,7 +124,6 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 			}
 			if partitionOffset != nil {
 				qm.storeConsumerOffset(partitionOffset)
-				log.Printf(".")
 			}
 		}
 	}
@@ -165,7 +156,8 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 	defer partitionConsumers.AsyncCloseAll()
 
 	for _, partition := range partitions {
-		pConsumer, err := consumer.ConsumePartition(ConsumerOffsetTopic, partition, sarama.OffsetOldest)
+		pConsumer, err := consumer.ConsumePartition(ConsumerOffsetTopic,
+			partition, sarama.OffsetOldest)
 		if err != nil {
 			log.Println("Error occured while consuming partition.", err)
 			return err
@@ -185,7 +177,7 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 // gets the latest commited offsets.
 func (qm *QueueMonitor) GetBrokerOffsets() error {
 
-	tpMap := qm.getTopicsAndPartitions(qm.ConsumerOffsetStore)
+	tpMap := qm.getTopicsAndPartitions(qm.OffsetStore)
 	brokerOffsetRequests := make(map[int32]BrokerOffsetRequest)
 
 	for topic, partitions := range tpMap {
@@ -209,7 +201,7 @@ func (qm *QueueMonitor) GetBrokerOffsets() error {
 		}
 	}
 
-	storeResponse := func(request *BrokerOffsetRequest) error {
+	sendBrokerOffsets := func(request *BrokerOffsetRequest) error {
 		response, err := request.Broker.GetAvailableOffsets(request.OffsetRequest)
 		if err != nil {
 			log.Println("Error while getting available offsets from broker.", err)
@@ -223,20 +215,15 @@ func (qm *QueueMonitor) GetBrokerOffsets() error {
 						offsetResponseBlock.Err.Error())
 					continue
 				}
-				brokerOffset := &PartitionOffset{
-					Topic:     topic,
-					Partition: partition,
-					Offset:    offsetResponseBlock.Offsets[0], // Version 0
-					Timestamp: offsetResponseBlock.Timestamp,
-				}
-				qm.storeBrokerOffset(brokerOffset)
+				brokerOffset := offsetResponseBlock.Offsets[0]
+				qm.lag(topic, partition, brokerOffset)
 			}
 		}
 		return nil
 	}
 
 	for _, brokerOffsetRequest := range brokerOffsetRequests {
-		err := storeResponse(&brokerOffsetRequest)
+		err := sendBrokerOffsets(&brokerOffsetRequest)
 		if err != nil {
 			return err
 		}
@@ -262,71 +249,51 @@ func (qm *QueueMonitor) getTopicsAndPartitions(offsetStore *syncmap.Map) map[str
 }
 
 // Computes the lag and sends the data as a gauge to Statsd.
-func (qm *QueueMonitor) computeLag(brokerOffsetMap *syncmap.Map, consumerOffsetMap *syncmap.Map) error {
-	consumerOffsetMap.Range(func(groupI, gbodyI interface{}) bool {
-		group := groupI.(string)
-		gbodyI.(*syncmap.Map).Range(func(topicI, tbodyI interface{}) bool {
-			topic := topicI.(string)
-			tbodyI.(*syncmap.Map).Range(func(partitionI, offsetI interface{}) bool {
-				partition := partitionI.(int32)
-				consumerOffset := offsetI.(int64)
-
-				tmp, ok := brokerOffsetMap.Load(topic)
-				if !ok {
-					return true
-				}
-				brokerPMap := tmp.(*syncmap.Map)
-				tmp, ok = brokerPMap.Load(partition)
-				if !ok {
-					return true
-				}
-				brokerOffset := tmp.(int64)
-
-				lag := brokerOffset - consumerOffset
-
-				if qm.Config.StatsdCfg.Enabled {
-					stat := fmt.Sprintf("%s.group.%s.%s.%d",
-						qm.Config.StatsdCfg.Prefix, group, topic, partition)
-					if lag < 0 {
-						log.Printf("Negative Lag received for %s: %d",
-							stat, lag)
-						return true
-					}
-					go qm.sendGaugeToStatsd(stat, lag)
-				}
-				log.Printf("\n+++++++++(Topic: %s, Partn: %d)++++++++++++"+
-					"\nBroker Offset: %d"+
-					"\nConsumer Offset: %d"+
-					"\nLag: %d"+
-					"\n++++++++++(Group: %s)+++++++++++",
-					topic, partition, brokerOffset, consumerOffset, lag, group)
-
-				return true
-			})
-			return true
-		})
+func (qm *QueueMonitor) lag(topic string, partition int32, brokerOffset int64) error {
+	tmp, ok := qm.OffsetStore.Load(topic)
+	if !ok {
+		return fmt.Errorf("Topic doesn't exist in Offset Store: %s", topic)
+	}
+	pOffsetMap, ok := tmp.(*syncmap.Map)
+	if !ok {
+		return fmt.Errorf("Not a valid syncmap at Topic: %s", topic)
+	}
+	pOffsetMap.Range(func(groupI, offsetI interface{}) bool {
+		group, ok := groupI.(string)
+		if !ok {
+			log.Println("Invalid cast to string for group.")
+			return false
+		}
+		offset, ok := offsetI.(int64)
+		if !ok {
+			log.Println("Invalid cast to int64 for offset.")
+			return false
+		}
+		lag := brokerOffset - offset
+		stat := fmt.Sprintf("%s.group.%s.%s.%d", qm.Config.StatsdCfg.Prefix,
+			group, topic, partition)
+		if lag < 0 {
+			log.Printf("Negative Lag received for %s: %d", stat, lag)
+		} else {
+			go qm.sendGaugeToStatsd(stat, lag)
+		}
 		return true
 	})
 	return nil
 }
 
 // Store newly received consumer offset.
-func (qm *QueueMonitor) storeConsumerOffset(newOffset *PartitionOffset) {
-	group, topic, partition, offset := newOffset.Group, newOffset.Topic,
-		newOffset.Partition, newOffset.Offset
-	tmp, _ := qm.ConsumerOffsetStore.LoadOrStore(group, new(syncmap.Map))
-	tpOffsetMap := tmp.(*syncmap.Map)
-	tmp, _ = tpOffsetMap.LoadOrStore(topic, new(syncmap.Map))
-	pOffsetMap := tmp.(*syncmap.Map)
-	pOffsetMap.Store(partition, offset)
-}
+func (qm *QueueMonitor) storeConsumerOffset(newOffset *PartitionOffset) bool {
+	topic, partition, group, offset := newOffset.Topic,
+		newOffset.Partition, newOffset.Group, newOffset.Offset
+	tmp, _ := qm.OffsetStore.LoadOrStore(topic, new(syncmap.Map))
+	tpOffsetMap, _ := tmp.(*syncmap.Map)
 
-// Store newly received broker offset.
-func (qm *QueueMonitor) storeBrokerOffset(newOffset *PartitionOffset) {
-	topic, partition, offset := newOffset.Topic, newOffset.Partition, newOffset.Offset
-	tmp, _ := qm.BrokerOffsetStore.LoadOrStore(topic, new(syncmap.Map))
-	pOffsetMap := tmp.(*syncmap.Map)
-	pOffsetMap.Store(partition, offset)
+	tmp, _ = tpOffsetMap.LoadOrStore(partition, new(syncmap.Map))
+	pOffsetMap, _ := tmp.(*syncmap.Map)
+
+	pOffsetMap.Store(group, offset)
+	return true
 }
 
 // Sends the gauge to Statsd.
