@@ -119,7 +119,7 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 		for message := range pConsumers.Handles[index].Messages() {
 			partitionOffset, err := formatConsumerMessage(message)
 			if err != nil {
-				log.Println("Error while parsing consumer message.")
+				log.Println("Error while parsing consumer message:", err)
 				continue
 			}
 			if partitionOffset != nil {
