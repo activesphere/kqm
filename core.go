@@ -251,9 +251,17 @@ func (qm *QueueMonitor) lag(topic string, partition int32, brokerOffset int64) e
 	if !ok {
 		return fmt.Errorf("Topic doesn't exist in Offset Store: %s", topic)
 	}
-	pOffsetMap, ok := tmp.(*syncmap.Map)
+	tpOffsetMap, ok := tmp.(*syncmap.Map)
 	if !ok {
 		return fmt.Errorf("Not a valid syncmap at Topic: %s", topic)
+	}
+	tmp, ok = tpOffsetMap.Load(partition)
+	if !ok {
+		return fmt.Errorf("Partition doesn't exist in syncmap: %d", partition)
+	}
+	pOffsetMap, ok := tmp.(*syncmap.Map)
+	if !ok {
+		return fmt.Errorf("Not a valid syncmap at Partition: %d", partition)
 	}
 	pOffsetMap.Range(func(groupI, offsetI interface{}) bool {
 		group, ok := groupI.(string)
