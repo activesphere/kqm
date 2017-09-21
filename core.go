@@ -184,7 +184,7 @@ func (qm *QueueMonitor) GetBrokerOffsets() error {
 		for _, partition := range partitions {
 			leaderBroker, err := qm.Client.Leader(topic, partition)
 			if err != nil {
-				log.Println("Error occured while fetching leader broker.", err)
+				log.Println("Error occured while fetching leader broker:", err)
 				return err
 			}
 			leaderBrokerID := leaderBroker.ID()

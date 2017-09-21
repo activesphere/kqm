@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"sync"
 	"time"
 
@@ -46,6 +47,7 @@ func (pc *PartitionConsumers) Add(pConsumer sarama.PartitionConsumer) {
 
 // AsyncCloseAll : Calls AsyncClose() on all Partition Consumers.
 func (pc *PartitionConsumers) AsyncCloseAll() {
+	log.Println("Async Close All")
 	defer pc.mutex.Unlock()
 	pc.mutex.Lock()
 	if pc.areClosed {
