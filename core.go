@@ -8,8 +8,8 @@ import (
 	"github.com/quipo/statsd"
 	"golang.org/x/sync/syncmap"
 	"log"
-	"time"
 	"sync"
+	"time"
 )
 
 // ConsumerOffsetTopic : provides the topic name of the Offset Topic.
@@ -227,13 +227,13 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 	}
 
 	partitionConsumers := PartitionConsumers{
-		Handles: make([]sarama.PartitionConsumer, 0),
-		mutex: &sync.Mutex{},
+		Handles:   make([]sarama.PartitionConsumer, 0),
+		mutex:     &sync.Mutex{},
 		areClosed: false,
 	}
 
 	for _, partition := range partitions {
-		pConsumer, err := consumer.ConsumePartition(ConsumerOffsetTopic, partition, sarama.OffsetNewest)
+		pConsumer, err := consumer.ConsumePartition(ConsumerOffsetTopic, partition, sarama.OffsetOldest)
 		if err != nil {
 			log.Println("Error occured while consuming partition.", err)
 			partitionConsumers.AsyncCloseAll()

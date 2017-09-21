@@ -37,9 +37,9 @@ type BrokerOffsetRequest struct {
 
 // PartitionConsumers : Wrapper around a list of sarama.PartitionConsumer
 type PartitionConsumers struct {
-	Handles       []sarama.PartitionConsumer
-	mutex         *sync.Mutex
-	areClosed     bool
+	Handles   []sarama.PartitionConsumer
+	mutex     *sync.Mutex
+	areClosed bool
 }
 
 // Add : Appends a partition consumer to the consumers list.
