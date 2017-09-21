@@ -93,18 +93,16 @@ func NewQueueMonitor(cfg *QMConfig) (*QueueMonitor, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	qm := &QueueMonitor{}
-	qm.Client = client
-	qm.OffsetStore = new(syncmap.Map)
-	qm.Config = cfg
-
 	statsdClient := statsd.NewStatsdClient(cfg.StatsdCfg.Addr,
 		cfg.StatsdCfg.Prefix)
 	err = statsdClient.CreateSocket()
 	if err != nil {
 		return nil, err
 	}
+	qm := &QueueMonitor{}
+	qm.Client = client
+	qm.OffsetStore = new(syncmap.Map)
+	qm.Config = cfg
 	qm.StatsdClient = statsdClient
 	return qm, err
 }
@@ -112,7 +110,7 @@ func NewQueueMonitor(cfg *QMConfig) (*QueueMonitor, error) {
 // GetConsumerOffsets : Subcribes to Offset Topic and parses messages to
 // obtains Consumer Offsets.
 func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
-	log.Println("Started getting consumer partition offsets...")
+	log.Println("Started getting consumer partition offsets.")
 
 	consumeMessage := func(pConsumers *PartitionConsumers, index int) {
 		defer pConsumers.AsyncCloseAll()
@@ -158,7 +156,8 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 		pConsumer, err := consumer.ConsumePartition(ConsumerOffsetTopic,
 			partition, sarama.OffsetOldest)
 		if err != nil {
-			log.Println("Error occured while consuming partition.", err)
+			log.Println("Error occured while creating Consumer Partition.", err)
+			partitionConsumers.AsyncCloseAll()
 			return err
 		}
 		partitionConsumers.Add(pConsumer)

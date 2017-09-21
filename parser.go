@@ -37,38 +37,38 @@ func formatConsumerMessage(message *sarama.ConsumerMessage) (*PartitionOffset, e
 	case 0, 1:
 		group, err = readString(buf)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("Error parsing group message key. Details: %s", err)
 		}
 		topic, err = readString(buf)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("Error parsing topic from key. Details: %s", err)
 		}
 		err = binary.Read(buf, binary.BigEndian, &partition)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("Error parsing partition from key. Details: %s", err)
 		}
 	case 2:
 		return nil, err
 	default:
-		return nil, err
+		return nil, fmt.Errorf("Unknown version error in message key. Details: %s", err)
 	}
 
 	buf = bytes.NewBuffer(message.Value)
 	err = binary.Read(buf, binary.BigEndian, &valver)
-	if (err != nil) || ((valver != 0) && (valver != 1)) {
-		return nil, err
+	if err != nil {
+		return nil, nil
 	}
 	err = binary.Read(buf, binary.BigEndian, &offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error reading offset from message value. Details: %s", err)
 	}
 	_, err = readString(buf)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error reading metadata(omitted) from message value. Details: %s", err)
 	}
 	err = binary.Read(buf, binary.BigEndian, &timestamp)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error reading timestamp from message value. Details: %s", err)
 	}
 
 	partitionOffset := &PartitionOffset{
