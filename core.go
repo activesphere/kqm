@@ -115,13 +115,17 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 	consumeMessage := func(pConsumers *PartitionConsumers, index int) {
 		defer pConsumers.AsyncCloseAll()
 		for message := range pConsumers.Handles[index].Messages() {
-			partitionOffset, err := formatConsumerMessage(message)
+			partitionOffset, err := parseConsumerMessage(message)
 			if err != nil {
 				log.Println("Error while parsing consumer message:", err)
 				continue
 			}
 			if partitionOffset != nil {
-				qm.storeConsumerOffset(partitionOffset)
+				if partitionOffset.DueForRemoval {
+					qm.removeConsumerGroup(partitionOffset)
+				} else {
+					qm.storeConsumerOffset(partitionOffset)
+				}
 			}
 		}
 	}
@@ -296,6 +300,27 @@ func (qm *QueueMonitor) storeConsumerOffset(newOffset *PartitionOffset) bool {
 	pOffsetMap, _ := tmp.(*syncmap.Map)
 
 	pOffsetMap.Store(group, offset)
+	return true
+}
+
+// Remove a Consumer Group from the Offset Store.
+func (qm *QueueMonitor) removeConsumerGroup(p *PartitionOffset) bool {
+	topic, partition, group := p.Topic, p.Partition, p.Group
+
+	tmp, ok := qm.OffsetStore.Load(topic)
+	if !ok {
+		return false
+	}
+	tpOffsetMap, _ := tmp.(*syncmap.Map)
+	tmp, ok = tpOffsetMap.Load(partition)
+	if !ok {
+		return false
+	}
+	pOffsetMap, _ := tmp.(*syncmap.Map)
+	pOffsetMap.Delete(group)
+
+	log.Printf("Removed topic: %s partition: %d group: %s",
+		topic, partition, group)
 	return true
 }
 

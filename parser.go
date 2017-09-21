@@ -9,7 +9,7 @@ import (
 )
 
 // Burrow-based Consumer Offset Message parser function.
-func formatConsumerMessage(message *sarama.ConsumerMessage) (*PartitionOffset, error) {
+func parseConsumerMessage(message *sarama.ConsumerMessage) (*PartitionOffset, error) {
 	readString := func(buf *bytes.Buffer) (string, error) {
 		var strlen uint16
 		err := binary.Read(buf, binary.BigEndian, &strlen)
@@ -48,15 +48,26 @@ func formatConsumerMessage(message *sarama.ConsumerMessage) (*PartitionOffset, e
 			return nil, fmt.Errorf("Error parsing partition from key. Details: %s", err)
 		}
 	case 2:
-		return nil, err
+		return nil, nil
 	default:
 		return nil, fmt.Errorf("Unknown version error in message key. Details: %s", err)
+	}
+
+	if message.Value == nil {
+		return &PartitionOffset{
+			Topic:         topic,
+			Partition:     int32(partition),
+			Group:         group,
+			Timestamp:     -1,
+			Offset:        -1,
+			DueForRemoval: true,
+		}, nil
 	}
 
 	buf = bytes.NewBuffer(message.Value)
 	err = binary.Read(buf, binary.BigEndian, &valver)
 	if err != nil {
-		return nil, nil
+		return nil, fmt.Errorf("Error reading version from message value. Details: %s", err)
 	}
 	err = binary.Read(buf, binary.BigEndian, &offset)
 	if err != nil {
@@ -76,11 +87,12 @@ func formatConsumerMessage(message *sarama.ConsumerMessage) (*PartitionOffset, e
 	}
 
 	partitionOffset := &PartitionOffset{
-		Topic:     topic,
-		Partition: int32(partition),
-		Group:     group,
-		Timestamp: int64(timestamp),
-		Offset:    int64(offset),
+		Topic:         topic,
+		Partition:     int32(partition),
+		Group:         group,
+		Timestamp:     int64(timestamp),
+		Offset:        int64(offset),
+		DueForRemoval: false,
 	}
 
 	/*
@@ -90,7 +102,7 @@ func formatConsumerMessage(message *sarama.ConsumerMessage) (*PartitionOffset, e
 		"kafka.coordinator.GroupMetadataManager\$OffsetsMessageFormatter" --from-beginning
 	*/
 	// fmt.Printf("[%s,%s,%d]::[OffsetMetadata[%d,NO_METADATA],CommitTime %d,ExpirationTime %d]\n",
-	// 	group, topic, int32(partition), int64(offset), int64(timestamp), int64(exptime))
+	// group, topic, int32(partition), int64(offset), int64(timestamp), int64(exptime))
 
 	return partitionOffset, nil
 }
