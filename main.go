@@ -26,7 +26,7 @@ Option               Description
 
 --read-interval      Specify the interval of calculating
                      the lag statistics (in seconds).
-                     Default: 120 seconds
+                     Default: 60 seconds
 `
 
 func parseCommand() (*QMConfig, error) {
@@ -37,8 +37,8 @@ func parseCommand() (*QMConfig, error) {
 		statsdAddr, statsdPrefix *string
 	)
 
-	readInterval = flag.Int("read-interval", 120, "")
-	statsdAddr = flag.String("statsd-addr", "localhost:8125", "")
+	readInterval = flag.Int("read-interval", 60, "")
+	statsdAddr = flag.String("statsd-addr", "127.0.0.1:8125", "")
 	statsdPrefix = flag.String("statsd-prefix", "kqm", "")
 	flag.Usage = func() {
 		fmt.Println(description)
