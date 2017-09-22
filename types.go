@@ -12,10 +12,11 @@ import (
 
 // QueueMonitor : Defines the type for Kafka Queue Monitor implementation.
 type QueueMonitor struct {
-	Client       sarama.Client
-	StatsdClient *statsd.StatsdClient
-	Config       *QMConfig
-	OffsetStore  *syncmap.Map
+	Client             sarama.Client
+	StatsdClient       *statsd.StatsdClient
+	Config             *QMConfig
+	OffsetStore        *syncmap.Map
+	PartitionConsumers PartitionConsumers
 }
 
 // PartitionOffset : Defines a type for Partition Offset
@@ -36,28 +37,36 @@ type BrokerOffsetRequest struct {
 
 // PartitionConsumers : Wrapper around a list of sarama.PartitionConsumer
 type PartitionConsumers struct {
-	Handles   []sarama.PartitionConsumer
-	mutex     *sync.Mutex
-	areClosed bool
+	Handles []sarama.PartitionConsumer
+	mutex   *sync.Mutex
 }
 
-// Add : Appends a partition consumer to the consumers list.
+// Add : Appends a partition consumer to the partition consumers list.
 func (pc *PartitionConsumers) Add(pConsumer sarama.PartitionConsumer) {
+	defer pc.mutex.Unlock()
+	pc.mutex.Lock()
 	pc.Handles = append(pc.Handles, pConsumer)
 }
 
-// AsyncCloseAll : Calls AsyncClose() on all Partition Consumers.
-func (pc *PartitionConsumers) AsyncCloseAll() {
+// PurgeHandles : Purges all Partition Consumers (Handles) by calling
+// AsyncClose() on each of them. After doing so, it truncates the list of
+// Partition Consumers.
+func (pc *PartitionConsumers) PurgeHandles() {
 	defer pc.mutex.Unlock()
 	pc.mutex.Lock()
-	if pc.areClosed {
-		return
-	}
 	for _, pConsumer := range pc.Handles {
 		pConsumer.AsyncClose()
 	}
-	pc.areClosed = true
-	log.Println("AsyncClose() called on all Partition Consumers.")
+	pc.Handles = make([]sarama.PartitionConsumer, 0)
+	log.Println("Purged Partition Consumers.")
+}
+
+// NewPartitionConsumers : Creates a new PartitionsConsumers instance.
+func NewPartitionConsumers() *PartitionConsumers {
+	return &PartitionConsumers{
+		Handles: make([]sarama.PartitionConsumer, 0),
+		mutex:   &sync.Mutex{},
+	}
 }
 
 // KafkaConfig : Type for Kafka Broker Configuration.

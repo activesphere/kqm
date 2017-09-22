@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"sync"
 	"time"
 
 	"github.com/Shopify/sarama"
@@ -86,9 +85,6 @@ func Start(cfg *QMConfig) {
 func NewQueueMonitor(cfg *QMConfig) (*QueueMonitor, error) {
 
 	config := sarama.NewConfig()
-	// Setting Consumer.Return.Errors to true enables sending the Partition
-	// Consumer Errors to the Error Channel instead of logging them.
-	config.Consumer.Return.Errors = true
 	client, err := sarama.NewClient(cfg.KafkaCfg.Brokers, config)
 	if err != nil {
 		return nil, err
@@ -112,9 +108,12 @@ func NewQueueMonitor(cfg *QMConfig) (*QueueMonitor, error) {
 func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 	log.Println("Started getting consumer partition offsets.")
 
-	consumeMessage := func(pConsumers *PartitionConsumers, index int) {
-		defer pConsumers.AsyncCloseAll()
-		for message := range pConsumers.Handles[index].Messages() {
+	consumeMessage := func(pcIndex int) {
+		defer func() {
+			errorChannel <- fmt.Errorf("Message Channel Closed")
+		}()
+		messageChannel := qm.PartitionConsumers.Handles[pcIndex].Messages()
+		for message := range messageChannel {
 			partitionOffset, err := parseConsumerMessage(message)
 			if err != nil {
 				log.Println("Error while parsing consumer message:", err)
@@ -130,31 +129,19 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 		}
 	}
 
-	checkErrors := func(pConsumers *PartitionConsumers, index int) {
-		defer pConsumers.AsyncCloseAll()
-		consumerError := <-pConsumers.Handles[index].Errors()
-		if consumerError != nil {
-			log.Println("Encountered a consumer error.", consumerError)
-			errorChannel <- consumerError
-		}
-	}
-
 	partitions, err := qm.Client.Partitions(ConsumerOffsetTopic)
 	if err != nil {
 		log.Println("Error occured while getting client partitions.", err)
 		return err
 	}
-
 	consumer, err := sarama.NewConsumerFromClient(qm.Client)
 	if err != nil {
 		log.Println("Error occured while creating new client consumer.", err)
 		return err
 	}
 
-	partitionConsumers := PartitionConsumers{
-		Handles:   make([]sarama.PartitionConsumer, 0),
-		mutex:     &sync.Mutex{},
-		areClosed: false,
+	if len(qm.PartitionConsumers.Handles) > 0 {
+		qm.PartitionConsumers.PurgeHandles()
 	}
 
 	for _, partition := range partitions {
@@ -162,17 +149,14 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 			partition, sarama.OffsetOldest)
 		if err != nil {
 			log.Println("Error occured while creating Consumer Partition.", err)
-			partitionConsumers.AsyncCloseAll()
 			return err
 		}
-		partitionConsumers.Add(pConsumer)
+		qm.PartitionConsumers.Add(pConsumer)
 	}
 
-	for index := range partitionConsumers.Handles {
-		go consumeMessage(&partitionConsumers, index)
-		go checkErrors(&partitionConsumers, index)
+	for index := range qm.PartitionConsumers.Handles {
+		go consumeMessage(index)
 	}
-
 	return nil
 }
 
