@@ -140,8 +140,10 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 		return err
 	}
 
-	if len(qm.PartitionConsumers.Handles) > 0 {
+	if qm.PartitionConsumers != nil {
 		qm.PartitionConsumers.PurgeHandles()
+	} else {
+		qm.PartitionConsumers = NewPartitionConsumers()
 	}
 
 	for _, partition := range partitions {

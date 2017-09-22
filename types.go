@@ -16,7 +16,7 @@ type QueueMonitor struct {
 	StatsdClient       *statsd.StatsdClient
 	Config             *QMConfig
 	OffsetStore        *syncmap.Map
-	PartitionConsumers PartitionConsumers
+	PartitionConsumers *PartitionConsumers
 }
 
 // PartitionOffset : Defines a type for Partition Offset
