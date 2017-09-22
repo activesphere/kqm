@@ -148,7 +148,7 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 
 	for _, partition := range partitions {
 		pConsumer, err := consumer.ConsumePartition(ConsumerOffsetTopic,
-			partition, sarama.OffsetOldest)
+			partition, sarama.OffsetNewest)
 		if err != nil {
 			log.Println("Error occured while creating Consumer Partition.", err)
 			return err
