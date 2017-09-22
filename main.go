@@ -15,9 +15,6 @@ It also comes with an option to send the lag statistics to Statsd.
 
 Option               Description
 ------               -----------
---stats-enabled      Statsd config will only be considered
-                     if this flag is set.
-
 --statsd-addr        Use this option if you need to send
                      the lag statistics to Statsd.
 
