@@ -134,7 +134,8 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 		defer pConsumers.AsyncCloseAll()
 		consumerError := <-pConsumers.Handles[index].Errors()
 		if consumerError != nil {
-			errorChannel <- consumerError.Err
+			log.Println("Encountered a consumer error.", consumerError)
+			errorChannel <- consumerError
 		}
 	}
 
