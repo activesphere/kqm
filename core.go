@@ -264,12 +264,11 @@ func (qm *QueueMonitor) lag(topic string, partition int32, brokerOffset int64) e
 			return false
 		}
 		lag := brokerOffset - offset
-		stat := fmt.Sprintf(".group.%s.%s.%d", group, topic, partition)
 		if lag < 0 {
-			log.Printf("Negative Lag received for %s: %d", stat, lag)
-		} else {
-			go qm.sendGaugeToStatsd(stat, lag)
+			lag = 0
 		}
+		stat := fmt.Sprintf(".group.%s.%s.%d", group, topic, partition)
+		go qm.sendGaugeToStatsd(stat, lag)
 		return true
 	})
 	return nil
