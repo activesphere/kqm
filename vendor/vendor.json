@@ -13,8 +13,8 @@
 		{
 			"checksumSHA1": "a2rrDyVgPDtsvzzlu2MvRsfTEX0=",
 			"path": "github.com/activesphere/kqm",
-			"revision": "646a700693b3391a5cb22fbd684ad6792e84bc4e",
-			"revisionTime": "2017-09-25T12:20:24Z"
+			"revision": "504ad2fdac9258f534599c91b7010edd911708b5",
+			"revisionTime": "2017-09-25T12:35:10Z"
 		},
 		{
 			"checksumSHA1": "dvabztWVQX8f6oMLRyv4dLH+TGY=",
@@ -78,9 +78,8 @@
 		{
 			"checksumSHA1": "7xi4G4msRwYvyD9YgnhsuaJVYUY=",
 			"path": "github.com/quipo/statsd/event",
-			"revision": "5d0a911f19db9b02b0a7d181ef6003c39e613978",
-			"revisionTime": "2017-09-15T15:40:09Z",
-			"version": "v1.3.0"
+			"revision": "052d083b451c73c0f7760b5064553d1b333f3970",
+			"revisionTime": "2017-08-02T21:58:56Z"
 		},
 		{
 			"checksumSHA1": "KAzbLjI9MzW2tjfcAsK75lVRp6I=",
