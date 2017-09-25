@@ -69,13 +69,6 @@
 			"versionExact": "v0.1.1"
 		},
 		{
-			"checksumSHA1": "vaMBpx2hpTrEluqAPuQsI16ikPY=",
-			"path": "github.com/quipo/statsd",
-			"revision": "5d0a911f19db9b02b0a7d181ef6003c39e613978",
-			"revisionTime": "2017-09-15T15:40:09Z",
-			"version": "v1.3.0"
-		},
-		{
 			"checksumSHA1": "7xi4G4msRwYvyD9YgnhsuaJVYUY=",
 			"path": "github.com/quipo/statsd/event",
 			"revision": "052d083b451c73c0f7760b5064553d1b333f3970",
