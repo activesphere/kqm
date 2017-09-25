@@ -11,6 +11,12 @@
 			"versionExact": "v1.12.0"
 		},
 		{
+			"checksumSHA1": "a2rrDyVgPDtsvzzlu2MvRsfTEX0=",
+			"path": "github.com/activesphere/kqm",
+			"revision": "646a700693b3391a5cb22fbd684ad6792e84bc4e",
+			"revisionTime": "2017-09-25T12:20:24Z"
+		},
+		{
 			"checksumSHA1": "dvabztWVQX8f6oMLRyv4dLH+TGY=",
 			"path": "github.com/davecgh/go-spew/spew",
 			"revision": "346938d642f2ec3594ed81d874461961cd0faa76",
@@ -63,6 +69,20 @@
 			"versionExact": "v0.1.1"
 		},
 		{
+			"checksumSHA1": "vaMBpx2hpTrEluqAPuQsI16ikPY=",
+			"path": "github.com/quipo/statsd",
+			"revision": "5d0a911f19db9b02b0a7d181ef6003c39e613978",
+			"revisionTime": "2017-09-15T15:40:09Z",
+			"version": "v1.3.0"
+		},
+		{
+			"checksumSHA1": "7xi4G4msRwYvyD9YgnhsuaJVYUY=",
+			"path": "github.com/quipo/statsd/event",
+			"revision": "5d0a911f19db9b02b0a7d181ef6003c39e613978",
+			"revisionTime": "2017-09-15T15:40:09Z",
+			"version": "v1.3.0"
+		},
+		{
 			"checksumSHA1": "KAzbLjI9MzW2tjfcAsK75lVRp6I=",
 			"path": "github.com/rcrowley/go-metrics",
 			"revision": "1f30fe9094a513ce4c700b9a54458bbb0c96996c",
@@ -81,6 +101,12 @@
 			"path": "golang.org/x/crypto/ssh/terminal",
 			"revision": "847319b7fc94cab682988f93da778204da164588",
 			"revisionTime": "2017-08-18T09:57:21Z"
+		},
+		{
+			"checksumSHA1": "4TEYFKrAUuwBMqExjQBsnf/CgjQ=",
+			"path": "golang.org/x/sync/syncmap",
+			"revision": "f52d1811a62927559de87708c8913c1650ce4f26",
+			"revisionTime": "2017-05-17T20:25:26Z"
 		},
 		{
 			"checksumSHA1": "tY+5thYxjKDUQyQXYcBqogmMS5U=",
