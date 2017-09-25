@@ -11,12 +11,6 @@
 			"versionExact": "v1.12.0"
 		},
 		{
-			"checksumSHA1": "a2rrDyVgPDtsvzzlu2MvRsfTEX0=",
-			"path": "github.com/activesphere/kqm",
-			"revision": "504ad2fdac9258f534599c91b7010edd911708b5",
-			"revisionTime": "2017-09-25T12:35:10Z"
-		},
-		{
 			"checksumSHA1": "dvabztWVQX8f6oMLRyv4dLH+TGY=",
 			"path": "github.com/davecgh/go-spew/spew",
 			"revision": "346938d642f2ec3594ed81d874461961cd0faa76",
@@ -101,7 +95,7 @@
 			"revisionTime": "2017-05-17T20:25:26Z"
 		},
 		{
-			"checksumSHA1": "tY+5thYxjKDUQyQXYcBqogmMS5U=",
+			"checksumSHA1": "uggjqMBFNJd11oNco2kbkAT641w=",
 			"path": "golang.org/x/sys/unix",
 			"revision": "429f518978ab01db8bb6f44b66785088e7fba58b",
 			"revisionTime": "2017-09-20T21:38:28Z"
