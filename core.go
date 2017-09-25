@@ -33,6 +33,10 @@ func Retry(cfg *QMConfig, title string, fn func() error) {
 // Error channel receives an error or not.
 func RetryWithChannel(cfg *QMConfig, title string, fn func(ec chan error) error) {
 	errorChannel := make(chan error)
+	resetErrorChannel := func() {
+		close(errorChannel)
+		errorChannel = make(chan error)
+	}
 	var err error
 	for {
 		err = fn(errorChannel)
@@ -44,6 +48,7 @@ func RetryWithChannel(cfg *QMConfig, title string, fn func(ec chan error) error)
 		err = <-errorChannel
 		if err != nil {
 			log.Println("Retrying due to a error received from channel:", title)
+			resetErrorChannel()
 			time.Sleep(cfg.ReadInterval)
 			continue
 		}
@@ -110,6 +115,11 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 
 	consumeMessage := func(pcIndex int) {
 		defer func() {
+			defer func() {
+				if rc := recover(); rc != nil {
+					log.Println("Recovering write to closed channel.")
+				}
+			}()
 			errorChannel <- fmt.Errorf("Message Channel Closed")
 		}()
 		messageChannel := qm.PartitionConsumers.Handles[pcIndex].Messages()
