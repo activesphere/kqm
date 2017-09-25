@@ -1,12 +1,12 @@
 package main
 
 import (
-	"log"
 	"sync"
 	"time"
 
 	"github.com/Shopify/sarama"
 	"github.com/quipo/statsd"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/syncmap"
 )
 
@@ -58,7 +58,7 @@ func (pc *PartitionConsumers) PurgeHandles() {
 		pConsumer.AsyncClose()
 	}
 	pc.Handles = make([]sarama.PartitionConsumer, 0)
-	log.Println("Purged Partition Consumers.")
+	log.Infoln("Purged Partition Consumers.")
 }
 
 // NewPartitionConsumers : Creates a new PartitionsConsumers instance.

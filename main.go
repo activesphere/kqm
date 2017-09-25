@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 var description = `
@@ -24,19 +26,29 @@ Option               Description
 --read-interval      Specify the interval of calculating
                      the lag statistics (in seconds).
                      Default: 60 seconds
+
+--log-level          Specify the level of severity of the
+                     logger. Levels are as follows:
+                     0 - Panic
+                     1 - Fatal
+                     2 - Error (Default)
+                     3 - Warn
+                     4 - Info
+                     5 - Debug
 `
 
 func parseCommand() (*QMConfig, error) {
 
 	var (
 		brokers                  []string
-		readInterval             *int
+		readInterval, logLevel   *int
 		statsdAddr, statsdPrefix *string
 	)
 
 	readInterval = flag.Int("read-interval", 60, "")
 	statsdAddr = flag.String("statsd-addr", "127.0.0.1:8125", "")
 	statsdPrefix = flag.String("statsd-prefix", "kqm", "")
+	logLevel = flag.Int("log-level", 2, "")
 	flag.Usage = func() {
 		fmt.Println(description)
 	}
@@ -57,6 +69,8 @@ func parseCommand() (*QMConfig, error) {
 		},
 		ReadInterval: time.Duration(*readInterval) * time.Second,
 	}
+
+	log.SetLevel(log.AllLevels[*logLevel])
 	return cfg, nil
 }
 

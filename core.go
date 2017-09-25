@@ -2,11 +2,11 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/Shopify/sarama"
 	"github.com/quipo/statsd"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/syncmap"
 )
 
@@ -19,11 +19,11 @@ func Retry(cfg *QMConfig, title string, fn func() error) {
 	for {
 		err := fn()
 		if err != nil {
-			log.Println("Retrying due to a sychronous error:", title)
+			log.Errorln("Retrying due to a sychronous error:", title)
 			time.Sleep(cfg.ReadInterval)
 			continue
 		}
-		log.Println("Completed Execution Successfully:", title)
+		log.Infoln("Completed Execution Successfully:", title)
 		break
 	}
 }
@@ -41,18 +41,18 @@ func RetryWithChannel(cfg *QMConfig, title string, fn func(ec chan error) error)
 	for {
 		err = fn(errorChannel)
 		if err != nil {
-			log.Println("Retrying due to a error returned by fn:", title)
+			log.Errorln("Retrying due to a error returned by fn:", title)
 			time.Sleep(cfg.ReadInterval)
 			continue
 		}
 		err = <-errorChannel
 		if err != nil {
-			log.Println("Retrying due to a error received from channel:", title)
+			log.Errorln("Retrying due to a error received from channel:", title)
 			resetErrorChannel()
 			time.Sleep(cfg.ReadInterval)
 			continue
 		}
-		log.Println("Completed Execution Successfully:", title)
+		log.Infoln("Completed Execution Successfully:", title)
 		break
 	}
 }
@@ -62,7 +62,7 @@ func RetryWithChannel(cfg *QMConfig, title string, fn func(ec chan error) error)
 func Start(cfg *QMConfig) {
 	qm, err := NewQueueMonitor(cfg)
 	if err != nil {
-		log.Println("Error while creating QueueMonitor instance.", err)
+		log.Errorln("Error while creating QueueMonitor instance.", err)
 		return
 	}
 
@@ -111,13 +111,13 @@ func NewQueueMonitor(cfg *QMConfig) (*QueueMonitor, error) {
 // GetConsumerOffsets : Subcribes to Offset Topic and parses messages to
 // obtains Consumer Offsets.
 func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
-	log.Println("Started getting consumer partition offsets.")
+	log.Infoln("Started getting consumer partition offsets.")
 
 	consumeMessage := func(pcIndex int) {
 		defer func() {
 			defer func() {
 				if rc := recover(); rc != nil {
-					log.Println("Recovering write to closed channel.")
+					log.Warningln("Recovering write to closed channel.")
 				}
 			}()
 			errorChannel <- fmt.Errorf("Message Channel Closed")
@@ -126,7 +126,7 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 		for message := range messageChannel {
 			partitionOffset, err := parseConsumerMessage(message)
 			if err != nil {
-				log.Println("Error while parsing consumer message:", err)
+				log.Errorln("Error while parsing consumer message:", err)
 				continue
 			}
 			if partitionOffset != nil {
@@ -141,12 +141,12 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 
 	partitions, err := qm.Client.Partitions(ConsumerOffsetTopic)
 	if err != nil {
-		log.Println("Error occured while getting client partitions.", err)
+		log.Errorln("Error occured while getting client partitions.", err)
 		return err
 	}
 	consumer, err := sarama.NewConsumerFromClient(qm.Client)
 	if err != nil {
-		log.Println("Error occured while creating new client consumer.", err)
+		log.Errorln("Error occured while creating new client consumer.", err)
 		return err
 	}
 
@@ -160,7 +160,7 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 		pConsumer, err := consumer.ConsumePartition(ConsumerOffsetTopic,
 			partition, sarama.OffsetNewest)
 		if err != nil {
-			log.Println("Error occured while creating Consumer Partition.", err)
+			log.Errorln("Error occured while creating Consumer Partition.", err)
 			return err
 		}
 		qm.PartitionConsumers.Add(pConsumer)
@@ -183,7 +183,7 @@ func (qm *QueueMonitor) GetBrokerOffsets() error {
 		for _, partition := range partitions {
 			leaderBroker, err := qm.Client.Leader(topic, partition)
 			if err != nil {
-				log.Println("Error occured while fetching leader broker:", err)
+				log.Errorln("Error occured while fetching leader broker:", err)
 				return err
 			}
 			leaderBrokerID := leaderBroker.ID()
@@ -203,14 +203,14 @@ func (qm *QueueMonitor) GetBrokerOffsets() error {
 	sendBrokerOffsets := func(request *BrokerOffsetRequest) error {
 		response, err := request.Broker.GetAvailableOffsets(request.OffsetRequest)
 		if err != nil {
-			log.Println("Error while getting available offsets from broker.", err)
+			log.Errorln("Error while getting available offsets from broker.", err)
 			return err
 		}
 
 		for topic, partitionMap := range response.Blocks {
 			for partition, offsetResponseBlock := range partitionMap {
 				if offsetResponseBlock.Err != sarama.ErrNoError {
-					log.Println("Error in offset response block.",
+					log.Errorln("Error in offset response block.",
 						offsetResponseBlock.Err.Error())
 					continue
 				}
@@ -265,12 +265,12 @@ func (qm *QueueMonitor) lag(topic string, partition int32, brokerOffset int64) e
 	pOffsetMap.Range(func(groupI, offsetI interface{}) bool {
 		group, ok := groupI.(string)
 		if !ok {
-			log.Println("Invalid cast to string for group.")
+			log.Warningln("Invalid cast to string for group.")
 			return false
 		}
 		offset, ok := offsetI.(int64)
 		if !ok {
-			log.Println("Invalid cast to int64 for offset.")
+			log.Warningln("Invalid cast to int64 for offset.")
 			return false
 		}
 		lag := brokerOffset - offset
@@ -314,7 +314,7 @@ func (qm *QueueMonitor) removeConsumerGroup(p *PartitionOffset) bool {
 	pOffsetMap, _ := tmp.(*syncmap.Map)
 	pOffsetMap.Delete(group)
 
-	log.Printf("Removed topic: %s partition: %d group: %s",
+	log.Infoln("Removed topic: %s partition: %d group: %s",
 		topic, partition, group)
 	return true
 }
@@ -322,13 +322,13 @@ func (qm *QueueMonitor) removeConsumerGroup(p *PartitionOffset) bool {
 // Sends the gauge to Statsd.
 func (qm *QueueMonitor) sendGaugeToStatsd(stat string, value int64) {
 	if qm.StatsdClient == nil {
-		log.Println("Statsd Client not initialized yet.")
+		log.Warningln("Statsd Client not initialized yet.")
 		return
 	}
 	err := qm.StatsdClient.Gauge(stat, value)
 	if err != nil {
-		log.Println("Error while sending gauge to statsd:", err)
+		log.Errorln("Error while sending gauge to statsd:", err)
 		return
 	}
-	log.Printf("Gauge sent to Statsd: %s=%d", stat, value)
+	log.Infoln("Gauge sent to Statsd: %s=%d", stat, value)
 }
