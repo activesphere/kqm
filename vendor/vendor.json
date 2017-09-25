@@ -3,22 +3,28 @@
 	"ignore": "test",
 	"package": [
 		{
-			"checksumSHA1": "EddXnllITE2MqGjj8Xw9hHFjuE8=",
+			"checksumSHA1": "50/2Bv2EHsoyhrd7ddZKIFMIkoo=",
 			"path": "github.com/Shopify/sarama",
-			"revision": "15174039fd207656a0f97f52bc78ec7793deeada",
-			"revisionTime": "2017-08-25T18:38:27Z"
+			"revision": "c01858abb625b73a3af51d0798e4ad42c8147093",
+			"revisionTime": "2017-05-08T18:36:27Z",
+			"version": "v1.12.0",
+			"versionExact": "v1.12.0"
 		},
 		{
-			"checksumSHA1": "mrz/kicZiUaHxkyfvC/DyQcr8Do=",
+			"checksumSHA1": "dvabztWVQX8f6oMLRyv4dLH+TGY=",
 			"path": "github.com/davecgh/go-spew/spew",
-			"revision": "a476722483882dd40b8111f0eb64e1d7f43f56e4",
-			"revisionTime": "2017-08-29T19:49:58Z"
+			"revision": "346938d642f2ec3594ed81d874461961cd0faa76",
+			"revisionTime": "2016-10-29T20:57:26Z",
+			"version": "v1.1.0",
+			"versionExact": "v1.1.0"
 		},
 		{
-			"checksumSHA1": "y2Kh4iPlgCPXSGTCcFpzePYdzzg=",
+			"checksumSHA1": "8fXg+lhLl7v3t7QHY0qh6MrTScc=",
 			"path": "github.com/eapache/go-resiliency/breaker",
-			"revision": "b1fe83b5b03f624450823b751b662259ffc6af70",
-			"revisionTime": "2017-06-07T16:36:15Z"
+			"revision": "6800482f2c813e689c88b7ed3282262385011890",
+			"revisionTime": "2015-02-13T20:23:15Z",
+			"version": "v1.0.0",
+			"versionExact": "v1.0.0"
 		},
 		{
 			"checksumSHA1": "WHl96RVZlOOdF4Lb1OOadMpw8ls=",
@@ -27,10 +33,12 @@
 			"revisionTime": "2016-06-09T14:24:08Z"
 		},
 		{
-			"checksumSHA1": "oCCs6kDanizatplM5e/hX76busE=",
+			"checksumSHA1": "AEGF/lRMFJukJAnRqdCVQ/0I+BY=",
 			"path": "github.com/eapache/queue",
-			"revision": "44cc805cf13205b55f69e14bcb69867d1ae92f98",
-			"revisionTime": "2016-08-05T00:47:13Z"
+			"revision": "ded5959c0d4e360646dc9e9908cff48666781367",
+			"revisionTime": "2015-06-06T11:53:03Z",
+			"version": "v1.0.2",
+			"versionExact": "v1.0.2"
 		},
 		{
 			"checksumSHA1": "p/8vSviYF91gFflhrt5vkyksroo=",
@@ -39,28 +47,20 @@
 			"revisionTime": "2017-02-15T23:32:05Z"
 		},
 		{
-			"checksumSHA1": "FGg99nQ56Fo3radSCuU1AeEUJug=",
+			"checksumSHA1": "BMjSRH5mPFsBz4Z1r9f/MzwVlXA=",
 			"path": "github.com/pierrec/lz4",
-			"revision": "08c27939df1bd95e881e2c2367a749964ad1fceb",
-			"revisionTime": "2017-08-28T19:29:35Z"
+			"revision": "5c9560bfa9ace2bf86080bf40d46b34ae44604df",
+			"revisionTime": "2016-12-06T20:23:05Z",
+			"version": "v1.0",
+			"versionExact": "v1.0"
 		},
 		{
-			"checksumSHA1": "zPWRjzsPeXCoqmidIcJtHbvrvRs=",
+			"checksumSHA1": "IT4sX58d+e8osXHV5U6YCSdB/uE=",
 			"path": "github.com/pierrec/xxHash/xxHash32",
-			"revision": "a0006b13c722f7f12368c00a3d3c2ae8a999a0c6",
-			"revisionTime": "2017-07-14T08:24:55Z"
-		},
-		{
-			"checksumSHA1": "Uz2dfScLBJVTnESIEiPdP6f2OeY=",
-			"path": "github.com/quipo/statsd",
-			"revision": "487fe6c5caf22cc1185cc043064a4d7bec3ca809",
-			"revisionTime": "2017-08-16T08:47:46Z"
-		},
-		{
-			"checksumSHA1": "7xi4G4msRwYvyD9YgnhsuaJVYUY=",
-			"path": "github.com/quipo/statsd/event",
-			"revision": "487fe6c5caf22cc1185cc043064a4d7bec3ca809",
-			"revisionTime": "2017-08-16T08:47:46Z"
+			"revision": "f051bb7f1d1aaf1b5a665d74fb6b0217712c69f7",
+			"revisionTime": "2016-01-12T16:53:51Z",
+			"version": "v0.1.1",
+			"versionExact": "v0.1.1"
 		},
 		{
 			"checksumSHA1": "KAzbLjI9MzW2tjfcAsK75lVRp6I=",
@@ -69,10 +69,30 @@
 			"revisionTime": "2016-11-28T21:05:44Z"
 		},
 		{
-			"checksumSHA1": "4TEYFKrAUuwBMqExjQBsnf/CgjQ=",
-			"path": "golang.org/x/sync/syncmap",
-			"revision": "f52d1811a62927559de87708c8913c1650ce4f26",
-			"revisionTime": "2017-05-17T20:25:26Z"
+			"checksumSHA1": "5+eS1Ticg5wkpsdNoPiST3OQcIg=",
+			"path": "github.com/sirupsen/logrus",
+			"revision": "f006c2ac4710855cf0f916dd6b77acf6b048dc6e",
+			"revisionTime": "2017-08-15T20:20:55Z",
+			"version": "v1.0.3",
+			"versionExact": "v1.0.3"
+		},
+		{
+			"checksumSHA1": "nqWNlnMmVpt628zzvyo6Yv2CX5Q=",
+			"path": "golang.org/x/crypto/ssh/terminal",
+			"revision": "847319b7fc94cab682988f93da778204da164588",
+			"revisionTime": "2017-08-18T09:57:21Z"
+		},
+		{
+			"checksumSHA1": "tY+5thYxjKDUQyQXYcBqogmMS5U=",
+			"path": "golang.org/x/sys/unix",
+			"revision": "429f518978ab01db8bb6f44b66785088e7fba58b",
+			"revisionTime": "2017-09-20T21:38:28Z"
+		},
+		{
+			"checksumSHA1": "pBPFzDGt3AVSRffB7ffiUnruFUk=",
+			"path": "golang.org/x/sys/windows",
+			"revision": "429f518978ab01db8bb6f44b66785088e7fba58b",
+			"revisionTime": "2017-09-20T21:38:28Z"
 		}
 	],
 	"rootPath": "github.com/activesphere/kqm"
