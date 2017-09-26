@@ -20,7 +20,7 @@ func Retry(cfg *QMConfig, title string, fn func() error) {
 		err := fn()
 		if err != nil {
 			log.Errorln("Retrying due to a sychronous error:", title)
-			time.Sleep(cfg.ReadInterval)
+			time.Sleep(cfg.Interval)
 			continue
 		}
 		log.Infoln("Completed Execution Successfully:", title)
@@ -42,14 +42,14 @@ func RetryWithChannel(cfg *QMConfig, title string, fn func(ec chan error) error)
 		err = fn(errorChannel)
 		if err != nil {
 			log.Errorln("Retrying due to a error returned by fn:", title)
-			time.Sleep(cfg.ReadInterval)
+			time.Sleep(cfg.Interval)
 			continue
 		}
 		err = <-errorChannel
 		if err != nil {
 			log.Errorln("Retrying due to a error received from channel:", title)
 			resetErrorChannel()
-			time.Sleep(cfg.ReadInterval)
+			time.Sleep(cfg.Interval)
 			continue
 		}
 		log.Infoln("Completed Execution Successfully:", title)
@@ -78,7 +78,7 @@ func Start(cfg *QMConfig) {
 			if err != nil {
 				return err
 			}
-			time.Sleep(cfg.ReadInterval)
+			time.Sleep(cfg.Interval)
 			return nil
 		})
 	}

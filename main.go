@@ -25,7 +25,7 @@ Option               Description
                      to Statsd.
                      Default: kqm
 
---read-interval      Specify the interval of calculating
+--interval           Specify the interval of calculating
                      the lag statistics (in seconds).
                      Default: 60 seconds
 
@@ -43,11 +43,11 @@ func parseCommand() (*QMConfig, error) {
 
 	var (
 		brokers                  []string
-		readInterval, logLevel   *int
+		interval, logLevel       *int
 		statsdAddr, statsdPrefix *string
 	)
 
-	readInterval = flag.Int("read-interval", 60, "")
+	interval = flag.Int("interval", 60, "")
 	statsdAddr = flag.String("statsd-addr", "localhost:8125", "")
 	statsdPrefix = flag.String("statsd-prefix", "kqm", "")
 	logLevel = flag.Int("log-level", 2, "")
@@ -69,7 +69,7 @@ func parseCommand() (*QMConfig, error) {
 			Addr:   *statsdAddr,
 			Prefix: *statsdPrefix,
 		},
-		ReadInterval: time.Duration(*readInterval) * time.Second,
+		Interval: time.Duration(*interval) * time.Second,
 	}
 
 	log.SetLevel(log.AllLevels[*logLevel])

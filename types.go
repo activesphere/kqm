@@ -82,7 +82,7 @@ type StatsdConfig struct {
 
 // QMConfig : Aggregated type for all configuration required for KQM.
 type QMConfig struct {
-	KafkaCfg     KafkaConfig
-	StatsdCfg    StatsdConfig
-	ReadInterval time.Duration
+	KafkaCfg  KafkaConfig
+	StatsdCfg StatsdConfig
+	Interval  time.Duration
 }
