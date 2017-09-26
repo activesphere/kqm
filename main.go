@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/activesphere/kqm/monitor"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -39,7 +40,7 @@ Option               Description
                      5 - Debug
 `
 
-func parseCommand() (*QMConfig, error) {
+func parseCommand() (*monitor.QMConfig, error) {
 
 	var (
 		brokers                  []string
@@ -61,11 +62,11 @@ func parseCommand() (*QMConfig, error) {
 		return nil, fmt.Errorf("Please specify brokers")
 	}
 
-	cfg := &QMConfig{
-		KafkaCfg: KafkaConfig{
+	cfg := &monitor.QMConfig{
+		KafkaCfg: monitor.KafkaConfig{
 			Brokers: brokers,
 		},
-		StatsdCfg: StatsdConfig{
+		StatsdCfg: monitor.StatsdConfig{
 			Addr:   *statsdAddr,
 			Prefix: *statsdPrefix,
 		},
@@ -82,5 +83,5 @@ func main() {
 		fmt.Printf("%s\n%s", err, description)
 		os.Exit(1)
 	}
-	Start(cfg)
+	monitor.Start(cfg)
 }
