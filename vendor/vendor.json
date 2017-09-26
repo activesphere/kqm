@@ -11,20 +11,16 @@
 			"versionExact": "v1.12.0"
 		},
 		{
-			"checksumSHA1": "dvabztWVQX8f6oMLRyv4dLH+TGY=",
+			"checksumSHA1": "mrz/kicZiUaHxkyfvC/DyQcr8Do=",
 			"path": "github.com/davecgh/go-spew/spew",
-			"revision": "346938d642f2ec3594ed81d874461961cd0faa76",
-			"revisionTime": "2016-10-29T20:57:26Z",
-			"version": "v1.1.0",
-			"versionExact": "v1.1.0"
+			"revision": "a476722483882dd40b8111f0eb64e1d7f43f56e4",
+			"revisionTime": "2017-08-29T19:49:58Z"
 		},
 		{
-			"checksumSHA1": "8fXg+lhLl7v3t7QHY0qh6MrTScc=",
+			"checksumSHA1": "y2Kh4iPlgCPXSGTCcFpzePYdzzg=",
 			"path": "github.com/eapache/go-resiliency/breaker",
-			"revision": "6800482f2c813e689c88b7ed3282262385011890",
-			"revisionTime": "2015-02-13T20:23:15Z",
-			"version": "v1.0.0",
-			"versionExact": "v1.0.0"
+			"revision": "b1fe83b5b03f624450823b751b662259ffc6af70",
+			"revisionTime": "2017-06-07T16:36:15Z"
 		},
 		{
 			"checksumSHA1": "WHl96RVZlOOdF4Lb1OOadMpw8ls=",
@@ -33,12 +29,10 @@
 			"revisionTime": "2016-06-09T14:24:08Z"
 		},
 		{
-			"checksumSHA1": "AEGF/lRMFJukJAnRqdCVQ/0I+BY=",
+			"checksumSHA1": "oCCs6kDanizatplM5e/hX76busE=",
 			"path": "github.com/eapache/queue",
-			"revision": "ded5959c0d4e360646dc9e9908cff48666781367",
-			"revisionTime": "2015-06-06T11:53:03Z",
-			"version": "v1.0.2",
-			"versionExact": "v1.0.2"
+			"revision": "44cc805cf13205b55f69e14bcb69867d1ae92f98",
+			"revisionTime": "2016-08-05T00:47:13Z"
 		},
 		{
 			"checksumSHA1": "p/8vSviYF91gFflhrt5vkyksroo=",
@@ -47,20 +41,22 @@
 			"revisionTime": "2017-02-15T23:32:05Z"
 		},
 		{
-			"checksumSHA1": "BMjSRH5mPFsBz4Z1r9f/MzwVlXA=",
+			"checksumSHA1": "FGg99nQ56Fo3radSCuU1AeEUJug=",
 			"path": "github.com/pierrec/lz4",
-			"revision": "5c9560bfa9ace2bf86080bf40d46b34ae44604df",
-			"revisionTime": "2016-12-06T20:23:05Z",
-			"version": "v1.0",
-			"versionExact": "v1.0"
+			"revision": "08c27939df1bd95e881e2c2367a749964ad1fceb",
+			"revisionTime": "2017-08-28T19:29:35Z"
 		},
 		{
-			"checksumSHA1": "IT4sX58d+e8osXHV5U6YCSdB/uE=",
+			"checksumSHA1": "zPWRjzsPeXCoqmidIcJtHbvrvRs=",
 			"path": "github.com/pierrec/xxHash/xxHash32",
-			"revision": "f051bb7f1d1aaf1b5a665d74fb6b0217712c69f7",
-			"revisionTime": "2016-01-12T16:53:51Z",
-			"version": "v0.1.1",
-			"versionExact": "v0.1.1"
+			"revision": "a0006b13c722f7f12368c00a3d3c2ae8a999a0c6",
+			"revisionTime": "2017-07-14T08:24:55Z"
+		},
+		{
+			"checksumSHA1": "XxdR8K8d+3iMvOhSldojumBEVbg=",
+			"path": "github.com/quipo/statsd",
+			"revision": "052d083b451c73c0f7760b5064553d1b333f3970",
+			"revisionTime": "2017-08-02T21:58:56Z"
 		},
 		{
 			"checksumSHA1": "7xi4G4msRwYvyD9YgnhsuaJVYUY=",
