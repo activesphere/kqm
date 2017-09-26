@@ -8,6 +8,7 @@ package main
 
 import (
 	"net"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -25,11 +26,13 @@ func main() {
 	buffer := make([]byte, 1024)
 
 	for {
-		_, _, err := conn.ReadFromUDP(buffer)
+		n, _, err := conn.ReadFromUDP(buffer)
 		if err != nil {
 			log.Errorln("Error reading from UDP: ", err)
 			continue
 		}
-		log.Println("Received: ", string(buffer))
+		props := strings.Split(string(buffer[:n]), ".")
+		lag := strings.Split(strings.Split(props[4], "|")[0], ":")[1]
+		log.Println("Lag:", lag)
 	}
 }
