@@ -314,7 +314,7 @@ func (qm *QueueMonitor) removeConsumerGroup(p *PartitionOffset) bool {
 	pOffsetMap, _ := tmp.(*syncmap.Map)
 	pOffsetMap.Delete(group)
 
-	log.Infof("Removed topic: %s partition: %d group: %s\n",
+	log.Infof("Removed topic: %s partition: %d group: %s",
 		topic, partition, group)
 	return true
 }
@@ -330,5 +330,5 @@ func (qm *QueueMonitor) sendGaugeToStatsd(stat string, value int64) {
 		log.Errorln("Error while sending gauge to statsd:", err)
 		return
 	}
-	log.Infof("Gauge sent to Statsd: %s=%d\n", stat, value)
+	log.Infof("Gauge sent to Statsd: %s=%d", stat, value)
 }
