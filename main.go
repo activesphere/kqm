@@ -19,9 +19,11 @@ Option               Description
 ------               -----------
 --statsd-addr        Use this option if you need to send
                      the lag statistics to Statsd.
+                     Default: localhost:8125
 
---statsd-prefix      This option is REQUIRED IF
-                     --statsd-addr is specified.
+--statsd-prefix      Set a prefix for the data being sent
+                     to Statsd.
+                     Default: kqm
 
 --read-interval      Specify the interval of calculating
                      the lag statistics (in seconds).
@@ -46,7 +48,7 @@ func parseCommand() (*QMConfig, error) {
 	)
 
 	readInterval = flag.Int("read-interval", 60, "")
-	statsdAddr = flag.String("statsd-addr", "127.0.0.1:8125", "")
+	statsdAddr = flag.String("statsd-addr", "localhost:8125", "")
 	statsdPrefix = flag.String("statsd-prefix", "kqm", "")
 	logLevel = flag.Int("log-level", 2, "")
 	flag.Usage = func() {
