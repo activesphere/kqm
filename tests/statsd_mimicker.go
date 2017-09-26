@@ -8,10 +8,40 @@ package main
 
 import (
 	"net"
+	"os"
+	"strconv"
 	"strings"
 
+	"github.com/activesphere/kqm/monitor"
 	log "github.com/sirupsen/logrus"
 )
+
+func parseGauge(gauge string) (*monitor.PartitionOffset, error) {
+	partOff := monitor.PartitionOffset{}
+
+	var props []string
+
+	props = strings.Split(gauge, ".")
+	partOff.Group, partOff.Topic = props[2], props[3]
+
+	props = strings.Split(strings.Trim(props[4], "|g"), ":")
+
+	partition, err := strconv.Atoi(props[0])
+	if err != nil {
+		log.Errorln("Conversion from string to int failed for partition.")
+		return nil, err
+	}
+	partOff.Partition = int32(partition)
+
+	lag, err := strconv.Atoi(props[1])
+	if err != nil {
+		log.Errorln("Conversion from string to int failed for lag.")
+		return nil, err
+	}
+	partOff.Offset = int64(lag)
+
+	return &partOff, nil
+}
 
 func main() {
 	serverAddr, err := net.ResolveUDPAddr("udp", ":8125")
@@ -31,8 +61,12 @@ func main() {
 			log.Errorln("Error reading from UDP: ", err)
 			continue
 		}
-		props := strings.Split(string(buffer[:n]), ".")
-		lag := strings.Split(strings.Split(props[4], "|")[0], ":")[1]
-		log.Println("Lag:", lag)
+
+		partOff, err := parseGauge(string(buffer[:n]))
+		if err != nil {
+			os.Exit(1)
+		}
+		log.Printf("Group: %s, Topic: %s, Partn: %d, Lag: %d",
+			partOff.Group, partOff.Topic, partOff.Partition, partOff.Offset)
 	}
 }
