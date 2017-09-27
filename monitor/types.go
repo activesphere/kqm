@@ -1,7 +1,6 @@
 package monitor
 
 import (
-	"sync"
 	"time"
 
 	"github.com/Shopify/sarama"
@@ -38,13 +37,10 @@ type BrokerOffsetRequest struct {
 // PartitionConsumers : Wrapper around a list of sarama.PartitionConsumer
 type PartitionConsumers struct {
 	Handles []sarama.PartitionConsumer
-	mutex   *sync.Mutex
 }
 
 // Add : Appends a partition consumer to the partition consumers list.
 func (pc *PartitionConsumers) Add(pConsumer sarama.PartitionConsumer) {
-	defer pc.mutex.Unlock()
-	pc.mutex.Lock()
 	pc.Handles = append(pc.Handles, pConsumer)
 }
 
@@ -52,8 +48,6 @@ func (pc *PartitionConsumers) Add(pConsumer sarama.PartitionConsumer) {
 // AsyncClose() on each of them. After doing so, it truncates the list of
 // Partition Consumers.
 func (pc *PartitionConsumers) PurgeHandles() {
-	defer pc.mutex.Unlock()
-	pc.mutex.Lock()
 	for _, pConsumer := range pc.Handles {
 		pConsumer.AsyncClose()
 	}
@@ -65,7 +59,6 @@ func (pc *PartitionConsumers) PurgeHandles() {
 func NewPartitionConsumers() *PartitionConsumers {
 	return &PartitionConsumers{
 		Handles: make([]sarama.PartitionConsumer, 0),
-		mutex:   &sync.Mutex{},
 	}
 }
 
