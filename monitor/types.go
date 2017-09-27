@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/Shopify/sarama"
@@ -26,6 +27,12 @@ type PartitionOffset struct {
 	Timestamp     int64
 	Group         string
 	DueForRemoval bool
+}
+
+func (p *PartitionOffset) String() string {
+	return fmt.Sprintf("Topic: %s, Partn: %d, Offset: %d, Group: %s, "+
+		"DueForRemoval: %t", p.Topic, p.Partition, p.Offset, p.Group,
+		p.DueForRemoval)
 }
 
 // BrokerOffsetRequest : Aggregated type for Broker and OffsetRequest
