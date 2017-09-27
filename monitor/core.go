@@ -113,32 +113,6 @@ func NewQueueMonitor(cfg *QMConfig) (*QueueMonitor, error) {
 func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 	log.Infoln("Started getting consumer partition offsets.")
 
-	consumeMessage := func(pcIndex int) {
-		defer func() {
-			defer func() {
-				if rc := recover(); rc != nil {
-					log.Warningln("Recovering write to closed channel.")
-				}
-			}()
-			errorChannel <- fmt.Errorf("Message Channel Closed")
-		}()
-		messageChannel := qm.PartitionConsumers.Handles[pcIndex].Messages()
-		for message := range messageChannel {
-			partitionOffset, err := parseConsumerMessage(message)
-			if err != nil {
-				log.Errorln("Error while parsing consumer message:", err)
-				continue
-			}
-			if partitionOffset != nil {
-				if partitionOffset.DueForRemoval {
-					qm.removeConsumerGroup(partitionOffset)
-				} else {
-					qm.storeConsumerOffset(partitionOffset)
-				}
-			}
-		}
-	}
-
 	partitions, err := qm.Client.Partitions(ConsumerOffsetTopic)
 	if err != nil {
 		log.Errorln("Error occured while getting client partitions.", err)
@@ -166,8 +140,8 @@ func (qm *QueueMonitor) GetConsumerOffsets(errorChannel chan error) error {
 		qm.PartitionConsumers.Add(pConsumer)
 	}
 
-	for index := range qm.PartitionConsumers.Handles {
-		go consumeMessage(index)
+	for _, pConsumer := range qm.PartitionConsumers.Handles {
+		go qm.consumeMessage(errorChannel, pConsumer)
 	}
 	return nil
 }
@@ -228,6 +202,35 @@ func (qm *QueueMonitor) GetBrokerOffsets() error {
 		}
 	}
 	return nil
+}
+
+// consumeMessage : Subscribes to the Message channel of the partition consumer
+// parses the received messages and store it in the offset store. If the
+// DueForRemoval flag is set, then the Consumer Group is marked for deletion.
+func (qm *QueueMonitor) consumeMessage(ec chan error, pConsumer sarama.PartitionConsumer) {
+	defer func() {
+		defer func() {
+			if rc := recover(); rc != nil {
+				log.Warningln("Recovering write to closed channel.")
+			}
+		}()
+		ec <- fmt.Errorf("Message Channel Closed")
+	}()
+	messageChannel := pConsumer.Messages()
+	for message := range messageChannel {
+		partitionOffset, err := parseConsumerMessage(message)
+		if err != nil {
+			log.Errorln("Error while parsing consumer message:", err)
+			continue
+		}
+		if partitionOffset != nil {
+			if partitionOffset.DueForRemoval {
+				qm.removeConsumerGroup(partitionOffset)
+			} else {
+				qm.storeConsumerOffset(partitionOffset)
+			}
+		}
+	}
 }
 
 // Fetches topics and their corresponding partitions.
