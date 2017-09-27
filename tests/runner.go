@@ -55,6 +55,7 @@ func main() {
 	defer conn.Close()
 	buffer := make([]byte, 1024)
 
+	log.Infoln("UDP server listening to port 8125.")
 	for {
 		n, _, err := conn.ReadFromUDP(buffer)
 		if err != nil {
