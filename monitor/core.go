@@ -174,29 +174,8 @@ func (qm *QueueMonitor) GetBrokerOffsets() error {
 		}
 	}
 
-	sendBrokerOffsets := func(request *BrokerOffsetRequest) error {
-		response, err := request.Broker.GetAvailableOffsets(request.OffsetRequest)
-		if err != nil {
-			log.Errorln("Error while getting available offsets from broker.", err)
-			return err
-		}
-
-		for topic, partitionMap := range response.Blocks {
-			for partition, offsetResponseBlock := range partitionMap {
-				if offsetResponseBlock.Err != sarama.ErrNoError {
-					log.Errorln("Error in offset response block.",
-						offsetResponseBlock.Err.Error())
-					continue
-				}
-				brokerOffset := offsetResponseBlock.Offsets[0]
-				qm.lag(topic, partition, brokerOffset)
-			}
-		}
-		return nil
-	}
-
 	for _, brokerOffsetRequest := range brokerOffsetRequests {
-		err := sendBrokerOffsets(&brokerOffsetRequest)
+		err := qm.sendBrokerOffsets(&brokerOffsetRequest)
 		if err != nil {
 			return err
 		}
@@ -231,6 +210,31 @@ func (qm *QueueMonitor) consumeMessage(ec chan error, pConsumer sarama.Partition
 			}
 		}
 	}
+}
+
+// sendBrokerOffsets : Makes the actual networks call to the broker using the
+// offset request passed as argument to it. On receiving response, it parses
+// through the response blocks and calls the lag() method for each broker
+// offset.
+func (qm *QueueMonitor) sendBrokerOffsets(request *BrokerOffsetRequest) error {
+	response, err := request.Broker.GetAvailableOffsets(request.OffsetRequest)
+	if err != nil {
+		log.Errorln("Error while getting available offsets from broker.", err)
+		return err
+	}
+
+	for topic, partitionMap := range response.Blocks {
+		for partition, offsetResponseBlock := range partitionMap {
+			if offsetResponseBlock.Err != sarama.ErrNoError {
+				log.Errorln("Error in offset response block.",
+					offsetResponseBlock.Err.Error())
+				continue
+			}
+			brokerOffset := offsetResponseBlock.Offsets[0]
+			qm.lag(topic, partition, brokerOffset)
+		}
+	}
+	return nil
 }
 
 // Fetches topics and their corresponding partitions.
