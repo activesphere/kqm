@@ -8,8 +8,8 @@ import (
 	"github.com/Shopify/sarama"
 )
 
-// Burrow-based Consumer Offset Message parser function.
-func parseConsumerMessage(message *sarama.ConsumerMessage) (*PartitionOffset, error) {
+// ParseConsumerMessage : Burrow-based Consumer Offset Message parser function.
+func ParseConsumerMessage(message *sarama.ConsumerMessage) (*PartitionOffset, error) {
 	readString := func(buf *bytes.Buffer) (string, error) {
 		var strlen uint16
 		err := binary.Read(buf, binary.BigEndian, &strlen)

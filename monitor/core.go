@@ -197,7 +197,7 @@ func (qm *QueueMonitor) consumeMessage(ec chan error, pConsumer sarama.Partition
 	}()
 	messageChannel := pConsumer.Messages()
 	for message := range messageChannel {
-		partitionOffset, err := parseConsumerMessage(message)
+		partitionOffset, err := ParseConsumerMessage(message)
 		if err != nil {
 			log.Errorln("Error while parsing consumer message:", err)
 			continue
