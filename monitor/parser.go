@@ -37,7 +37,7 @@ func ParseConsumerMessage(message *sarama.ConsumerMessage) (*PartitionOffset, er
 	case 0, 1:
 		group, err = readString(buf)
 		if err != nil {
-			return nil, fmt.Errorf("Error parsing group message key. Details: %s", err)
+			return nil, fmt.Errorf("Error parsing group message from key. Details: %s", err)
 		}
 		topic, err = readString(buf)
 		if err != nil {
