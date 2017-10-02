@@ -11,12 +11,12 @@
 			"versionExact": "v1.12.0"
 		},
 		{
-			"checksumSHA1": "H/LnOnA12IHamO0RQIRs6f8sdE4=",
-			"path": "github.com/bsm/sarama-cluster",
-			"revision": "ccdc0803695fbce22f1706d04ded46cd518fd832",
-			"revisionTime": "2017-05-25T10:18:58Z",
-			"version": "v2.1.8",
-			"versionExact": "v2.1.8"
+			"checksumSHA1": "LCWES3q+xfG/ZvzqVcMZZTPVN/g=",
+			"path": "github.com/confluentinc/confluent-kafka-go/kafka",
+			"revision": "f696f02dcbb04d95b103c5b848bb15f749a996f7",
+			"revisionTime": "2017-06-20T11:56:03Z",
+			"version": "v0.11.0",
+			"versionExact": "v0.11.0"
 		},
 		{
 			"checksumSHA1": "mrz/kicZiUaHxkyfvC/DyQcr8Do=",
