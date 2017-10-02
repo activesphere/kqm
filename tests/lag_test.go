@@ -223,7 +223,7 @@ func TestLag(t *testing.T) {
 	log.Infof("Consumer Received Message on %s: %s",
 		message.TopicPartition, string(message.Value))
 
-	time.Sleep(15 * time.Second)
+	time.Sleep(20 * time.Second)
 
 	lag := getConsumerLag(conn, &monitor.PartitionOffset{
 		Topic:     topic,
@@ -231,7 +231,7 @@ func TestLag(t *testing.T) {
 		Group:     groupID,
 	})
 	log.Infof("Lag at (Topic: %s, Partn: %d): %d", topic, partition, lag)
-	assert.Equal(t, lag, int64(0))
+	assert.Equal(t, int64(0), lag)
 
 	log.Infoln("Closing the Consumer.")
 	consumer.Close()
@@ -248,7 +248,7 @@ func TestLag(t *testing.T) {
 			producedPartOff.Topic, producedPartOff.Partition)
 	}
 
-	time.Sleep(15 * time.Second)
+	time.Sleep(20 * time.Second)
 
 	lag = getConsumerLag(conn, &monitor.PartitionOffset{
 		Topic:     topic,
@@ -256,7 +256,7 @@ func TestLag(t *testing.T) {
 		Group:     groupID,
 	})
 	log.Infof("Lag at (Topic: %s, Partn: %d): %d", topic, partition, lag)
-	assert.Equal(t, lag, int64(produceCount))
+	assert.Equal(t, int64(produceCount), lag)
 
 	consumer, err = createConsumer(broker, groupID, []string{topic})
 	if err != nil {
@@ -270,7 +270,7 @@ func TestLag(t *testing.T) {
 	log.Infof("Consumer Received Message on %s: %s",
 		message.TopicPartition, string(message.Value))
 
-	time.Sleep(15 * time.Second)
+	time.Sleep(20 * time.Second)
 
 	lag = getConsumerLag(conn, &monitor.PartitionOffset{
 		Topic:     topic,
@@ -278,5 +278,5 @@ func TestLag(t *testing.T) {
 		Group:     groupID,
 	})
 	log.Infof("Lag at (Topic: %s, Partn: %d): %d", topic, partition, lag)
-	assert.Equal(t, lag, int64(0))
+	assert.Equal(t, int64(0), lag)
 }
