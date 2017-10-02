@@ -1,4 +1,4 @@
-package main
+package tests
 
 /*
 	This is a UDP server implementation to mimick Statsd for testing purpose.
@@ -7,16 +7,17 @@ package main
 */
 
 import (
-	"flag"
 	"net"
 	"os"
 	"strconv"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/activesphere/kqm/monitor"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 )
 
 func toPartitionOffset(message *kafka.Message) *monitor.PartitionOffset {
@@ -146,8 +147,10 @@ func createConsumer(broker string, groupID string,
 	return consumer, nil
 }
 
-func equalTopicPartition(p1, p2 *monitor.PartitionOffset) bool {
-	if p1.Topic == p2.Topic && p1.Partition == p2.Partition {
+func equalPartitionOffsets(p1, p2 *monitor.PartitionOffset) bool {
+	if p1.Topic == p2.Topic &&
+		p1.Partition == p2.Partition &&
+		p1.Group == p2.Group {
 		return true
 	}
 	return false
@@ -167,13 +170,16 @@ func getConsumerLag(conn *net.UDPConn, srcPartOff *monitor.PartitionOffset) int6
 			os.Exit(1)
 		}
 
-		if equalTopicPartition(srcPartOff, recvPartOff) {
+		if equalPartitionOffsets(srcPartOff, recvPartOff) {
 			return recvPartOff.Offset
 		}
 	}
 }
 
-func main() {
+// TestLag : Basic test for Lag.
+func TestLag(t *testing.T) {
+	log.SetLevel(log.DebugLevel)
+
 	serverAddr, err := net.ResolveUDPAddr("udp", ":8125")
 	if err != nil {
 		log.Fatalln("Error in resolving Addr:", err)
@@ -184,8 +190,12 @@ func main() {
 	}
 	defer conn.Close()
 
-	flag.Parse()
-	broker := flag.Args()[0]
+	const (
+		broker    = "localhost:9092"
+		topic     = "topic_1"
+		groupID   = "clark-kent-0"
+		partition = 0
+	)
 
 	producer, err := createProducer(broker)
 	if err != nil {
@@ -193,39 +203,80 @@ func main() {
 	}
 	defer producer.Close()
 
-	const (
-		topic   = "topic_1"
-		groupID = "clark-kent"
-	)
+	message := produceMessage(producer, topic, partition, "Test Message")
+	if message == nil {
+		log.Fatalln("There was a problem in producing the message.")
+	}
+	producedPartOff := toPartitionOffset(message)
+	log.Infof("Produced Message on topic: %s, partn: %d.",
+		producedPartOff.Topic, producedPartOff.Partition)
+
 	consumer, err := createConsumer(broker, groupID, []string{topic})
 	if err != nil {
 		log.Fatalln("Error while creating Consumer.")
 	}
-	defer consumer.Close()
+	log.Infoln("Consuming Message from Topic:", topic)
+	message, err = consumerEvents(consumer)
+	if err != nil {
+		log.Fatalln("There was a problem while consuming message.", err)
+	}
+	log.Infof("Consumer Received Message on %s: %s",
+		message.TopicPartition, string(message.Value))
 
-	for {
-		message := produceMessage(producer, topic, 0, "Test Message")
+	time.Sleep(15 * time.Second)
+
+	lag := getConsumerLag(conn, &monitor.PartitionOffset{
+		Topic:     topic,
+		Partition: partition,
+		Group:     groupID,
+	})
+	log.Infof("Lag at (Topic: %s, Partn: %d): %d", topic, partition, lag)
+	assert.Equal(t, lag, int64(0))
+
+	log.Infoln("Closing the Consumer.")
+	consumer.Close()
+
+	produceCount := 10
+
+	for count := 1; count <= produceCount; count++ {
+		message = produceMessage(producer, topic, partition, "Test Message")
 		if message == nil {
-			log.Errorln("There was a problem in producing the message.")
-			return
+			log.Fatalln("There was a problem in producing the message.")
 		}
-		producedPartOff := toPartitionOffset(message)
+		producedPartOff = toPartitionOffset(message)
 		log.Infof("Produced Message on topic: %s, partn: %d.",
 			producedPartOff.Topic, producedPartOff.Partition)
-
-		time.Sleep(10 * time.Second)
-
-		lag := getConsumerLag(conn, producedPartOff)
-		log.Infof("Lag at (Topic: %s, Partn: %d): %d", producedPartOff.Topic,
-			producedPartOff.Partition, lag)
-
-		// log.Infoln("Consuming Message from Topic:", topic)
-		// message, err := consumerEvents(consumer)
-		// if err != nil {
-		// 	log.Errorln("There was a problem while consuming message.", err)
-		// 	continue
-		// }
-		// log.Infof("Consumer Received Message on %s:\n%s\n", message.TopicPartition,
-		// 	string(message.Value))
 	}
+
+	time.Sleep(15 * time.Second)
+
+	lag = getConsumerLag(conn, &monitor.PartitionOffset{
+		Topic:     topic,
+		Partition: partition,
+		Group:     groupID,
+	})
+	log.Infof("Lag at (Topic: %s, Partn: %d): %d", topic, partition, lag)
+	assert.Equal(t, lag, int64(produceCount))
+
+	consumer, err = createConsumer(broker, groupID, []string{topic})
+	if err != nil {
+		log.Fatalln("Error while creating Consumer.")
+	}
+	log.Infoln("Consuming Message from Topic:", topic)
+	message, err = consumerEvents(consumer)
+	if err != nil {
+		log.Fatalln("There was a problem while consuming message.", err)
+	}
+	log.Infof("Consumer Received Message on %s: %s",
+		message.TopicPartition, string(message.Value))
+
+	time.Sleep(15 * time.Second)
+
+	lag = getConsumerLag(conn, &monitor.PartitionOffset{
+		Topic:     topic,
+		Partition: partition,
+		Group:     groupID,
+	})
+	log.Infof("Lag at (Topic: %s, Partn: %d): %d", topic, partition, lag)
+	assert.Equal(t, lag, int64(0))
 }
