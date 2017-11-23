@@ -38,6 +38,13 @@ Option               Description
                      3 - Warn
                      4 - Info
                      5 - Debug
+
+Example Command Usage:
+kqm --log-level=5 \
+    --interval=30 \
+    --statsd-addr localhost:8125 \
+    --statsd-prefix prefix_demo \
+    localhost:9092
 `
 
 func parseCommand() (*monitor.QMConfig, error) {

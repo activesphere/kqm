@@ -47,6 +47,9 @@ Option               Description
 Example
 -------------------
 ```
-kqm --brokers localhost:9092 --interval 1 \
-	--statsd-addr localhost:8125 --statsd-prefix prefix_demo
+kqm --log-level=5 \
+    --interval=30 \
+    --statsd-addr localhost:8125 \
+    --statsd-prefix prefix_demo \
+    localhost:9092
 ```
