@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Shopify/sarama"
+	log "github.com/sirupsen/logrus"
 )
 
 // ParseConsumerMessage : Burrow-based Consumer Offset Message parser function.
@@ -101,8 +102,8 @@ func ParseConsumerMessage(message *sarama.ConsumerMessage) (*PartitionOffset, er
 		localhost:9092 --formatter \
 		"kafka.coordinator.GroupMetadataManager\$OffsetsMessageFormatter" --from-beginning
 	*/
-	// fmt.Printf("[%s,%s,%d]::[OffsetMetadata[%d,NO_METADATA],CommitTime %d,ExpirationTime %d]\n",
-	// group, topic, int32(partition), int64(offset), int64(timestamp), int64(exptime))
+	log.Debugf("[%s,%s,%d]::[OffsetMetadata[%d,NO_METADATA],CommitTime %d,ExpirationTime %d]\n",
+		group, topic, int32(partition), int64(offset), int64(timestamp), int64(exptime))
 
 	return partitionOffset, nil
 }
