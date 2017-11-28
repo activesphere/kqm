@@ -223,8 +223,6 @@ func TestLag(t *testing.T) {
 	log.Infof("Consumer Received Message on %s: %s",
 		message.TopicPartition, string(message.Value))
 
-	time.Sleep(20 * time.Second)
-
 	lag := getConsumerLag(conn, &monitor.PartitionOffset{
 		Topic:     topic,
 		Partition: partition,
@@ -248,8 +246,6 @@ func TestLag(t *testing.T) {
 			producedPartOff.Topic, producedPartOff.Partition)
 	}
 
-	time.Sleep(20 * time.Second)
-
 	lag = getConsumerLag(conn, &monitor.PartitionOffset{
 		Topic:     topic,
 		Partition: partition,
@@ -270,7 +266,7 @@ func TestLag(t *testing.T) {
 	log.Infof("Consumer Received Message on %s: %s",
 		message.TopicPartition, string(message.Value))
 
-	time.Sleep(20 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	lag = getConsumerLag(conn, &monitor.PartitionOffset{
 		Topic:     topic,
