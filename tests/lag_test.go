@@ -256,10 +256,10 @@ func TestLag(t *testing.T) {
 
 		log.Printf(`
 			##################################################################
-			Produce 10 messages and check for the lag. It should be 10 since
+			Produce %d messages and check for the lag. It should be %d since
 			the consumer hasn't consumed those messages yet.
 			##################################################################
-		`)
+		`, messageCount, messageCount)
 
 		produceMessages(messageCount)
 		lag = getConsumerLag(conn, &monitor.PartitionOffset{
