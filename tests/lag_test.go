@@ -7,6 +7,7 @@ package tests
 */
 
 import (
+	"math"
 	"net"
 	"os"
 	"strconv"
@@ -99,7 +100,7 @@ func produceMessage(producer *kafka.Producer, topic string,
 			Topic:     &topic,
 			Partition: partition,
 		},
-		Value: []byte(value),
+		Value: []byte(value + "|" + time.Now().String()),
 	}
 	result := <-doneChan
 	return result
@@ -203,76 +204,101 @@ func TestLag(t *testing.T) {
 	}
 	defer producer.Close()
 
-	message := produceMessage(producer, topic, partition, "Test Message")
-	if message == nil {
-		log.Fatalln("There was a problem in producing the message.")
-	}
-	producedPartOff := toPartitionOffset(message)
-	log.Infof("Produced Message on topic: %s, partn: %d.",
-		producedPartOff.Topic, producedPartOff.Partition)
-
-	consumer, err := createConsumer(broker, groupID, []string{topic})
-	if err != nil {
-		log.Fatalln("Error while creating Consumer.")
-	}
-	log.Infoln("Consuming Message from Topic:", topic)
-	message, err = consumerEvents(consumer)
-	if err != nil {
-		log.Fatalln("There was a problem while consuming message.", err)
-	}
-	log.Infof("Consumer Received Message on %s: %s",
-		message.TopicPartition, string(message.Value))
-
-	lag := getConsumerLag(conn, &monitor.PartitionOffset{
-		Topic:     topic,
-		Partition: partition,
-		Group:     groupID,
-	})
-	log.Infof("Lag at (Topic: %s, Partn: %d): %d", topic, partition, lag)
-	assert.Equal(t, int64(0), lag)
-
-	log.Infoln("Closing the Consumer.")
-	consumer.Close()
-
-	produceCount := 10
-
-	for count := 1; count <= produceCount; count++ {
-		message = produceMessage(producer, topic, partition, "Test Message")
-		if message == nil {
-			log.Fatalln("There was a problem in producing the message.")
+	produceMessages := func(num int) {
+		for i := 1; i <= num; i++ {
+			message := produceMessage(producer, topic, partition,
+				"MSG"+strconv.Itoa(i))
+			if message == nil {
+				log.Fatalln("There was a problem in producing the message.")
+			}
+			producedPartOff := toPartitionOffset(message)
+			log.Infof("Produced Message on topic: %s, partn: %d.",
+				producedPartOff.Topic, producedPartOff.Partition)
 		}
-		producedPartOff = toPartitionOffset(message)
-		log.Infof("Produced Message on topic: %s, partn: %d.",
-			producedPartOff.Topic, producedPartOff.Partition)
 	}
 
-	lag = getConsumerLag(conn, &monitor.PartitionOffset{
-		Topic:     topic,
-		Partition: partition,
-		Group:     groupID,
-	})
-	log.Infof("Lag at (Topic: %s, Partn: %d): %d", topic, partition, lag)
-	assert.Equal(t, int64(produceCount), lag)
+	consumeMessages := func() {
+		consumer, err := createConsumer(broker, groupID, []string{topic})
+		if err != nil {
+			log.Fatalln("Error while creating Consumer.")
+		}
+		log.Infoln("Consuming Message from Topic:", topic)
+		message, err := consumerEvents(consumer)
+		if err != nil {
+			log.Fatalln("There was a problem while consuming message.", err)
+		}
+		log.Infof("Consumer Received Messages on Topic: %s, Partn: %d",
+			*message.TopicPartition.Topic, message.TopicPartition.Partition)
 
-	consumer, err = createConsumer(broker, groupID, []string{topic})
-	if err != nil {
-		log.Fatalln("Error while creating Consumer.")
+		log.Infoln("Closing the Consumer.")
+		consumer.Close()
 	}
-	log.Infoln("Consuming Message from Topic:", topic)
-	message, err = consumerEvents(consumer)
-	if err != nil {
-		log.Fatalln("There was a problem while consuming message.", err)
+
+	checkLag := func(messageCount int) {
+
+		log.Printf(`
+			##################################################################
+			Produce some messages and consume them, so that KQM becomes aware
+			of the new consumer.
+			##################################################################
+		`)
+
+		produceMessages(messageCount)
+		consumeMessages()
+
+		lag := getConsumerLag(conn, &monitor.PartitionOffset{
+			Topic:     topic,
+			Partition: partition,
+			Group:     groupID,
+		})
+		log.Infof("Lag at (Topic: %s, Partn: %d): %d", topic, partition, lag)
+		assert.Equal(t, int64(0), lag)
+
+		log.Printf(`
+			##################################################################
+			Produce 10 messages and check for the lag. It should be 10 since
+			the consumer hasn't consumed those messages yet.
+			##################################################################
+		`)
+
+		produceMessages(messageCount)
+		lag = getConsumerLag(conn, &monitor.PartitionOffset{
+			Topic:     topic,
+			Partition: partition,
+			Group:     groupID,
+		})
+		log.Infof("Lag at (Topic: %s, Partn: %d): %d", topic, partition, lag)
+		assert.Equal(t, int64(messageCount), lag)
+
+		log.Printf(`
+			##################################################################
+			Initiate the consumption of messages and check for the lag once
+			again. It should be zero this time since the consumer will have
+			consumed the messages.
+			##################################################################
+		`)
+
+		consumeMessages()
+
+		log.Infoln("Wait for 10 seconds for the updates to reflect in KQM.")
+		time.Sleep(10 * time.Second)
+		lag = getConsumerLag(conn, &monitor.PartitionOffset{
+			Topic:     topic,
+			Partition: partition,
+			Group:     groupID,
+		})
+		log.Infof("Lag at (Topic: %s, Partn: %d): %d", topic, partition, lag)
+		assert.Equal(t, int64(0), lag)
 	}
-	log.Infof("Consumer Received Message on %s: %s",
-		message.TopicPartition, string(message.Value))
 
-	time.Sleep(5 * time.Second)
-
-	lag = getConsumerLag(conn, &monitor.PartitionOffset{
-		Topic:     topic,
-		Partition: partition,
-		Group:     groupID,
-	})
-	log.Infof("Lag at (Topic: %s, Partn: %d): %d", topic, partition, lag)
-	assert.Equal(t, int64(0), lag)
+	// Check from 10 to 1000 messages.
+	for i := 1; i <= 3; i++ {
+		scale := int(math.Pow10(i))
+		log.Printf(`
+			******************************************************************
+			# Lag Validation for scale: %s									 #
+			******************************************************************
+		`, strconv.Itoa(scale))
+		checkLag(scale)
+	}
 }
