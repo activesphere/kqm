@@ -102,7 +102,7 @@ func ParseConsumerMessage(message *sarama.ConsumerMessage) (*PartitionOffset, er
 		localhost:9092 --formatter \
 		"kafka.coordinator.GroupMetadataManager\$OffsetsMessageFormatter" --from-beginning
 	*/
-	log.Debugf("[%s,%s,%d]::[OffsetMetadata[%d,NO_METADATA],CommitTime %d,ExpirationTime %d]\n",
+	log.Debugf("[%s,%s,%d]::[OffsetMetadata[%d,NO_METADATA],CommitTime %d,ExpirationTime %d]",
 		group, topic, int32(partition), int64(offset), int64(timestamp), int64(exptime))
 
 	return partitionOffset, nil

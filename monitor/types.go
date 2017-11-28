@@ -6,17 +6,15 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/quipo/statsd"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/syncmap"
 )
 
 // QueueMonitor : Defines the type for Kafka Queue Monitor implementation.
 type QueueMonitor struct {
-	Client             sarama.Client
-	StatsdClient       *statsd.StatsdClient
-	Config             *QMConfig
-	OffsetStore        *syncmap.Map
-	PartitionConsumers *PartitionConsumers
+	Client       sarama.Client
+	StatsdClient *statsd.StatsdClient
+	Config       *QMConfig
+	OffsetStore  *syncmap.Map
 }
 
 // PartitionOffset : Defines a type for Partition Offset
@@ -39,34 +37,6 @@ func (p *PartitionOffset) String() string {
 type BrokerOffsetRequest struct {
 	Broker        *sarama.Broker
 	OffsetRequest *sarama.OffsetRequest
-}
-
-// PartitionConsumers : Wrapper around a list of sarama.PartitionConsumer
-type PartitionConsumers struct {
-	Handles []sarama.PartitionConsumer
-}
-
-// Add : Appends a partition consumer to the partition consumers list.
-func (pc *PartitionConsumers) Add(pConsumer sarama.PartitionConsumer) {
-	pc.Handles = append(pc.Handles, pConsumer)
-}
-
-// PurgeHandles : Purges all Partition Consumers (Handles) by calling
-// AsyncClose() on each of them. After doing so, it truncates the list of
-// Partition Consumers.
-func (pc *PartitionConsumers) PurgeHandles() {
-	for _, pConsumer := range pc.Handles {
-		pConsumer.AsyncClose()
-	}
-	pc.Handles = make([]sarama.PartitionConsumer, 0)
-	log.Infoln("Purged Partition Consumers.")
-}
-
-// NewPartitionConsumers : Creates a new PartitionsConsumers instance.
-func NewPartitionConsumers() *PartitionConsumers {
-	return &PartitionConsumers{
-		Handles: make([]sarama.PartitionConsumer, 0),
-	}
 }
 
 // KafkaConfig : Type for Kafka Broker Configuration.
