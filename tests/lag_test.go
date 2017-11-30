@@ -193,7 +193,7 @@ func TestLag(t *testing.T) {
 
 	const (
 		broker    = "localhost:9092"
-		topic     = "topic_1"
+		topic     = "topic1"
 		groupID   = "clark-kent-0"
 		partition = 0
 	)
