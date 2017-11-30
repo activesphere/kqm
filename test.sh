@@ -7,6 +7,7 @@ pushd /kqm
 
 echo "Starting Zookeeper."
 service zookeeper start
+sleep 10
 echo "Zookeeper: $(findproc zookeeper)"
 
 echo "Starting Kafka."
@@ -32,12 +33,12 @@ echo "Building KQM."
 go build
 
 echo "Starting KQM."
-./kqm --log-level=5 \
+nohup ./kqm --log-level=5 \
 	--interval=1 \
 	--statsd-addr localhost:8125 \
 	--statsd-prefix prefix_demo \
-	localhost:9092
-sleep 5
+	localhost:9092 > kqm.log 2>&1 &
+sleep 10
 echo "KQM: $(findproc kqm)"
 
 echo "Start a Consumer to the __consumer_offsets topic."
@@ -45,7 +46,7 @@ nohup /kqm/kafka/bin/kafka-console-consumer.sh --topic __consumer_offsets \
     --bootstrap-server localhost:9092 \
     --formatter "kafka.coordinator.group.GroupMetadataManager\$OffsetsMessageFormatter" \
     --from-beginning > consumer.log 2>&1 &
-sleep 5
+sleep 10
 echo "Consumer: $(findproc ConsoleConsumer)"
 
 echo "KQM Port Status: $(netstat -anlp | grep -i 8125)"

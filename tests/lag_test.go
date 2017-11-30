@@ -280,8 +280,8 @@ func TestLag(t *testing.T) {
 
 		consumeMessages()
 
-		log.Infoln("Wait for 10 seconds for the updates to reflect in KQM.")
-		time.Sleep(10 * time.Second)
+		log.Infoln("Wait for half a minute for the updates to reflect in KQM.")
+		time.Sleep(30 * time.Second)
 		lag = getConsumerLag(conn, &monitor.PartitionOffset{
 			Topic:     topic,
 			Partition: partition,

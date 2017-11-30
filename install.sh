@@ -2,7 +2,7 @@
 
 # Update dependencies
 apt-get clean && apt-get update
-apt-get install -y python zookeeper zookeeperd wget software-properties-common git
+apt-get install -y python zookeeper zookeeperd wget software-properties-common git net-tools
 
 # Install Go
 add-apt-repository ppa:longsleep/golang-backports
