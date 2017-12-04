@@ -218,11 +218,6 @@ func TestLag(t *testing.T) {
 			log.Infof("Produced Message on topic: %s, partn: %d.",
 				producedPartOff.Topic, producedPartOff.Partition)
 		}
-
-		waitTimeMillis := num * 3
-		log.Infof("Wait for %d millis for producer to initiate properly.",
-			waitTimeMillis)
-		time.Sleep(time.Duration(waitTimeMillis) * time.Millisecond)
 	}
 
 	consumeMessages := func(topic string, groupID string, numMessages int) {
@@ -230,18 +225,16 @@ func TestLag(t *testing.T) {
 		if err != nil {
 			log.Fatalln("Error while creating Consumer.")
 		}
-		log.Infoln("Consuming Message from Topic:", topic)
-		message, err := consumerEvents(consumer)
-		if err != nil {
-			log.Fatalln("There was a problem while consuming message.", err)
-		}
-		log.Infof("Consumer Received Messages on Topic: %s, Partn: %d",
-			*message.TopicPartition.Topic, message.TopicPartition.Partition)
 
-		waitTimeMillis := numMessages * 3
-		log.Infof("Wait for %d millis for consumer to finish consuming.",
-			waitTimeMillis)
-		time.Sleep(time.Duration(waitTimeMillis) * time.Millisecond)
+		log.Infoln("Consuming Messages from Topic:", topic)
+		for i := 1; i <= numMessages; i++ {
+			message, err := consumerEvents(consumer)
+			if err != nil {
+				log.Fatalln("There was a problem while consuming message.", err)
+			}
+			log.Infof("Consumer Received Messages on Topic: %s, Partn: %d",
+				*message.TopicPartition.Topic, message.TopicPartition.Partition)
+		}
 
 		log.Infoln("Closing the Consumer.")
 		consumer.Close()
