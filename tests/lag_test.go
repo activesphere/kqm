@@ -158,8 +158,8 @@ func equalPartitionOffsets(p1, p2 *monitor.PartitionOffset) bool {
 }
 
 func getConsumerLag(conn *net.UDPConn, srcPartOff *monitor.PartitionOffset) int64 {
-	log.Infoln("Wait for half a minute for the updates to reflect in KQM.")
-	time.Sleep(30 * time.Second)
+	log.Infoln("Wait for 15 seconds for the updates to reflect in KQM.")
+	time.Sleep(15 * time.Second)
 
 	buffer := make([]byte, 512)
 	for {
@@ -219,11 +219,13 @@ func TestLag(t *testing.T) {
 				producedPartOff.Topic, producedPartOff.Partition)
 		}
 
-		log.Infoln("Wait for 5 seconds for producer to initiate properly.")
-		time.Sleep(5 * time.Second)
+		waitTimeMillis := num * 3
+		log.Infof("Wait for %d millis for producer to initiate properly.",
+			waitTimeMillis)
+		time.Sleep(time.Duration(waitTimeMillis) * time.Millisecond)
 	}
 
-	consumeMessages := func(topic string, groupID string) {
+	consumeMessages := func(topic string, groupID string, numMessages int) {
 		consumer, err := createConsumer(broker, groupID, []string{topic})
 		if err != nil {
 			log.Fatalln("Error while creating Consumer.")
@@ -236,8 +238,10 @@ func TestLag(t *testing.T) {
 		log.Infof("Consumer Received Messages on Topic: %s, Partn: %d",
 			*message.TopicPartition.Topic, message.TopicPartition.Partition)
 
-		log.Infoln("Wait for 10 seconds for the consumer to finish consuming.")
-		time.Sleep(10 * time.Second)
+		waitTimeMillis := numMessages * 3
+		log.Infof("Wait for %d millis for consumer to finish consuming.",
+			waitTimeMillis)
+		time.Sleep(time.Duration(waitTimeMillis) * time.Millisecond)
 
 		log.Infoln("Closing the Consumer.")
 		consumer.Close()
@@ -252,7 +256,7 @@ func TestLag(t *testing.T) {
 			##################################################################
 		`)
 		produceMessages(topic, messageCount)
-		consumeMessages(topic, groupID)
+		consumeMessages(topic, groupID, messageCount)
 
 		lag := getConsumerLag(conn, &monitor.PartitionOffset{
 			Topic:     topic,
@@ -285,7 +289,7 @@ func TestLag(t *testing.T) {
 			consumed the messages.
 			##################################################################
 		`)
-		consumeMessages(topic, groupID)
+		consumeMessages(topic, groupID, messageCount)
 
 		lag = getConsumerLag(conn, &monitor.PartitionOffset{
 			Topic:     topic,

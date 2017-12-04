@@ -36,14 +36,15 @@ pushd /kqm
 
 echo "Starting Zookeeper."
 service zookeeper start
-sleep 30
+echo "Waiting for 15 seconds."
+sleep 15
 echo "Zookeeper: $(findproc zookeeper)"
 
 echo "Starting Kafka."
 nohup kafka/bin/kafka-server-start.sh kafka/config/server.properties >kafka.log \
 	2>&1 &
-echo "Waiting for half a minute."
-sleep 30
+echo "Waiting for 15 seconds."
+sleep 15
 echo "Kafka: $(findproc kafka)"
 
 echo "Creating a Kafka Topics."
@@ -78,8 +79,8 @@ nohup /kqm/kafka/bin/kafka-console-consumer.sh --topic __consumer_offsets \
     --bootstrap-server localhost:9092 \
     --formatter "kafka.coordinator.group.GroupMetadataManager\$OffsetsMessageFormatter" \
     --from-beginning > /kqm/consumer.log 2>&1 &
-echo "Waiting for half a minute."
-sleep 30
+echo "Waiting for 15 seconds."
+sleep 15
 echo "Consumer: $(findproc ConsoleConsumer)"
 
 echo "KQM Port Status: $(netstat -anlp | grep -i 8125)"
