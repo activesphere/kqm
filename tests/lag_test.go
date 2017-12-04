@@ -158,6 +158,9 @@ func equalPartitionOffsets(p1, p2 *monitor.PartitionOffset) bool {
 }
 
 func getConsumerLag(conn *net.UDPConn, srcPartOff *monitor.PartitionOffset) int64 {
+	log.Infoln("Wait for half a minute for the updates to reflect in KQM.")
+	time.Sleep(30 * time.Second)
+
 	buffer := make([]byte, 512)
 	for {
 		n, _, err := conn.ReadFromUDP(buffer)
@@ -192,10 +195,10 @@ func TestLag(t *testing.T) {
 	defer conn.Close()
 
 	const (
-		broker    = "localhost:9092"
-		topic     = "topic1"
-		groupID   = "clark-kent-0"
-		partition = 0
+		broker        = "localhost:9092"
+		topicPrefix   = "topic"
+		groupIDPrefix = "clark-kent-"
+		partition     = 0
 	)
 
 	producer, err := createProducer(broker)
@@ -204,7 +207,7 @@ func TestLag(t *testing.T) {
 	}
 	defer producer.Close()
 
-	produceMessages := func(num int) {
+	produceMessages := func(topic string, num int) {
 		for i := 1; i <= num; i++ {
 			message := produceMessage(producer, topic, partition,
 				"MSG"+strconv.Itoa(i))
@@ -215,9 +218,12 @@ func TestLag(t *testing.T) {
 			log.Infof("Produced Message on topic: %s, partn: %d.",
 				producedPartOff.Topic, producedPartOff.Partition)
 		}
+
+		log.Infoln("Wait for 5 seconds for producer to initiate properly.")
+		time.Sleep(5 * time.Second)
 	}
 
-	consumeMessages := func() {
+	consumeMessages := func(topic string, groupID string) {
 		consumer, err := createConsumer(broker, groupID, []string{topic})
 		if err != nil {
 			log.Fatalln("Error while creating Consumer.")
@@ -230,11 +236,14 @@ func TestLag(t *testing.T) {
 		log.Infof("Consumer Received Messages on Topic: %s, Partn: %d",
 			*message.TopicPartition.Topic, message.TopicPartition.Partition)
 
+		log.Infoln("Wait for 10 seconds for the consumer to finish consuming.")
+		time.Sleep(10 * time.Second)
+
 		log.Infoln("Closing the Consumer.")
 		consumer.Close()
 	}
 
-	checkLag := func(messageCount int) {
+	checkLag := func(topic string, groupID string, messageCount int) {
 
 		log.Printf(`
 			##################################################################
@@ -242,9 +251,8 @@ func TestLag(t *testing.T) {
 			of the new consumer.
 			##################################################################
 		`)
-
-		produceMessages(messageCount)
-		consumeMessages()
+		produceMessages(topic, messageCount)
+		consumeMessages(topic, groupID)
 
 		lag := getConsumerLag(conn, &monitor.PartitionOffset{
 			Topic:     topic,
@@ -260,8 +268,8 @@ func TestLag(t *testing.T) {
 			the consumer hasn't consumed those messages yet.
 			##################################################################
 		`, messageCount, messageCount)
+		produceMessages(topic, messageCount)
 
-		produceMessages(messageCount)
 		lag = getConsumerLag(conn, &monitor.PartitionOffset{
 			Topic:     topic,
 			Partition: partition,
@@ -277,11 +285,8 @@ func TestLag(t *testing.T) {
 			consumed the messages.
 			##################################################################
 		`)
+		consumeMessages(topic, groupID)
 
-		consumeMessages()
-
-		log.Infoln("Wait for half a minute for the updates to reflect in KQM.")
-		time.Sleep(30 * time.Second)
 		lag = getConsumerLag(conn, &monitor.PartitionOffset{
 			Topic:     topic,
 			Partition: partition,
@@ -299,6 +304,9 @@ func TestLag(t *testing.T) {
 			# Lag Validation for scale: %s									 #
 			******************************************************************
 		`, strconv.Itoa(scale))
-		checkLag(scale)
+		index := strconv.Itoa(i)
+		topic := topicPrefix + index
+		groupID := groupIDPrefix + index
+		checkLag(topic, groupID, scale)
 	}
 }

@@ -7,13 +7,14 @@ pushd /kqm
 
 echo "Starting Zookeeper."
 service zookeeper start
-sleep 15
+sleep 30
 echo "Zookeeper: $(findproc zookeeper)"
 
 echo "Starting Kafka."
 nohup kafka/bin/kafka-server-start.sh kafka/config/server.properties >kafka.log \
 	2>&1 &
-sleep 15
+echo "Waiting for half a minute."
+sleep 30
 echo "Kafka: $(findproc kafka)"
 
 echo "Creating a Kafka Topics."
@@ -28,6 +29,7 @@ kafka/bin/kafka-topics.sh --create --topic topic4 --zookeeper localhost:2181 \
 
 export GOPATH=/kqm/go
 pushd /kqm/go/src/github.com/activesphere/kqm
+git pull origin master
 
 echo "Building KQM."
 go build
@@ -38,15 +40,17 @@ nohup ./kqm --log-level=5 \
 	--statsd-addr localhost:8125 \
 	--statsd-prefix prefix_demo \
 	localhost:9092 > kqm.log 2>&1 &
-sleep 15
+echo "Waiting for half a minute."
+sleep 30
 echo "KQM: $(findproc kqm)"
 
 echo "Start a Consumer to the __consumer_offsets topic."
 nohup /kqm/kafka/bin/kafka-console-consumer.sh --topic __consumer_offsets \
     --bootstrap-server localhost:9092 \
     --formatter "kafka.coordinator.group.GroupMetadataManager\$OffsetsMessageFormatter" \
-    --from-beginning > consumer.log 2>&1 &
-sleep 15
+    --from-beginning > /kqm/consumer.log 2>&1 &
+echo "Waiting for half a minute."
+sleep 30
 echo "Consumer: $(findproc ConsoleConsumer)"
 
 echo "KQM Port Status: $(netstat -anlp | grep -i 8125)"
