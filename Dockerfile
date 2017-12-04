@@ -1,6 +1,5 @@
 FROM ubuntu:16.04
 WORKDIR /kqm
-COPY ./*.sh ./
-RUN chmod +x ./*.sh
-RUN ./install.sh
+COPY ./test.sh ./
+RUN chmod +x ./test.sh
 RUN ./test.sh
