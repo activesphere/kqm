@@ -67,8 +67,8 @@ nohup ./kqm --log-level=5 \
 	--statsd-addr localhost:8125 \
 	--statsd-prefix prefix_demo \
 	localhost:9092 > kqm.log 2>&1 &
-echo "Waiting for half a minute."
-sleep 30
+echo "Waiting for 10 seconds."
+sleep 10
 echo "KQM: $(findproc kqm)"
 
 echo "Start a Consumer to the __consumer_offsets topic."
@@ -81,6 +81,10 @@ sleep 15
 echo "Consumer: $(findproc ConsoleConsumer)"
 
 echo "KQM Port Status: $(netstat -anlp | grep -i 8125)"
+
+echo "KQM Output until now:"
+cat kqm.log
+echo "Waiting for 10 seconds."
 
 echo "Running tests."
 pushd tests
