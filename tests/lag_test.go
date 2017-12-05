@@ -158,9 +158,6 @@ func equalPartitionOffsets(p1, p2 *monitor.PartitionOffset) bool {
 }
 
 func getConsumerLag(conn *net.UDPConn, srcPartOff *monitor.PartitionOffset) int64 {
-	log.Infoln("Wait for 15 seconds for the updates to reflect in KQM.")
-	time.Sleep(15 * time.Second)
-
 	buffer := make([]byte, 512)
 	for {
 		n, _, err := conn.ReadFromUDP(buffer)
@@ -264,40 +261,41 @@ func TestLag(t *testing.T) {
 
 		log.Printf(`
 			##################################################################
-			Produce %d messages and check for the lag. It should be %d since
-			the consumer hasn't consumed those messages yet.
+			Produce %d messages and consume them using the same consumer.
+			Check the lag for the consumer, it should be zero since the
+			consumer will consume all the produced messages.
 			##################################################################
-		`, messageCount, messageCount)
+		`, messageCount)
 		produceMessages(topic, messageCount)
-
-		lag = getConsumerLag(conn, &monitor.PartitionOffset{
-			Topic:     topic,
-			Partition: partition,
-			Group:     groupID,
-		})
-		log.Infof("Lag at (Topic: %s, Partn: %d): %d", topic, partition, lag)
-		assert.Equal(t, int64(messageCount), lag)
-
-		log.Printf(`
-			##################################################################
-			Initiate the consumption of messages and check for the lag once
-			again. It should be zero this time since the consumer will have
-			consumed the messages.
-			##################################################################
-		`)
 		consumeMessages(topic, groupID, messageCount)
 
-		lag = getConsumerLag(conn, &monitor.PartitionOffset{
-			Topic:     topic,
-			Partition: partition,
-			Group:     groupID,
-		})
-		log.Infof("Lag at (Topic: %s, Partn: %d): %d", topic, partition, lag)
-		assert.Equal(t, int64(0), lag)
+		waitInSeconds := 5
+		for waitInSeconds <= 60 {
+			log.Infof("Waiting for %d seconds for the updates to reflect "+
+				"in KQM.", waitInSeconds)
+			time.Sleep(time.Duration(waitInSeconds) * time.Second)
+
+			lag = getConsumerLag(conn, &monitor.PartitionOffset{
+				Topic:     topic,
+				Partition: partition,
+				Group:     groupID,
+			})
+			log.Infof("Lag at (Group: %s, Topic: %s, Partn: %d): %d", groupID,
+				topic, partition, lag)
+
+			if lag == 0 {
+				return
+			}
+
+			log.Infof("Non-zero lag obtained, retrying with a greater " +
+				"sleep time.")
+			waitInSeconds += 5
+		}
+		assert.FailNow(t, "FAILURE. Non-zero lag even after multiple retries.")
 	}
 
-	// Check from 10 to 100 messages.
-	for i := 1; i <= 2; i++ {
+	// Check from 10 to 10000 messages.
+	for i := 1; i <= 4; i++ {
 		scale := int(math.Pow10(i))
 		log.Printf(`
 			******************************************************************
