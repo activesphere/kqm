@@ -5,7 +5,7 @@ apt-get clean && apt-get update
 apt-get install -y python zookeeper zookeeperd wget software-properties-common git net-tools
 
 # Install Go
-add-apt-repository ppa:longsleep/golang-backports
+add-apt-repository -y ppa:longsleep/golang-backports
 apt-get update
 apt-get install -y golang-go
 
@@ -32,8 +32,6 @@ function findproc() {
 	echo $(ps aux | grep -i $1 | grep -v grep)
 }
 
-pushd /kqm
-
 echo "Starting Zookeeper."
 service zookeeper start
 echo "Waiting for 15 seconds."
@@ -59,7 +57,6 @@ kafka/bin/kafka-topics.sh --create --topic topic4 --zookeeper localhost:2181 \
 
 export GOPATH=/kqm/go
 pushd /kqm/go/src/github.com/activesphere/kqm
-git pull origin master
 
 echo "Building KQM."
 go build
