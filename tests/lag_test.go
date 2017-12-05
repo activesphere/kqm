@@ -232,8 +232,9 @@ func TestLag(t *testing.T) {
 			if err != nil {
 				log.Fatalln("There was a problem while consuming message.", err)
 			}
-			log.Infof("Consumer Received Messages on Topic: %s, Partn: %d",
-				*message.TopicPartition.Topic, message.TopicPartition.Partition)
+			log.Infof("Consumer Received Message on Topic: %s, Partn: "+
+				"%d, Message: %s", *message.TopicPartition.Topic,
+				message.TopicPartition.Partition, message.Value)
 		}
 
 		log.Infoln("Closing the Consumer.")
@@ -244,19 +245,20 @@ func TestLag(t *testing.T) {
 
 		log.Printf(`
 			##################################################################
-			Produce some messages and consume them, so that KQM becomes aware
-			of the new consumer.
+			Start the consumer so that KQM becomes aware of the new consumer.
+			Check the lag, it should be zero since there are no messages
+			produced yet.
 			##################################################################
 		`)
-		produceMessages(topic, messageCount)
-		consumeMessages(topic, groupID, messageCount)
+		consumeMessages(topic, groupID, 0)
 
 		lag := getConsumerLag(conn, &monitor.PartitionOffset{
 			Topic:     topic,
 			Partition: partition,
 			Group:     groupID,
 		})
-		log.Infof("Lag at (Topic: %s, Partn: %d): %d", topic, partition, lag)
+		log.Infof("Lag at (Group: %s, Topic: %s, Partn: %d): %d",
+			groupID, topic, partition, lag)
 		assert.Equal(t, int64(0), lag)
 
 		log.Printf(`
@@ -293,8 +295,8 @@ func TestLag(t *testing.T) {
 		assert.Equal(t, int64(0), lag)
 	}
 
-	// Check from 10 to 1000 messages.
-	for i := 1; i <= 3; i++ {
+	// Check from 10 to 100 messages.
+	for i := 1; i <= 2; i++ {
 		scale := int(math.Pow10(i))
 		log.Printf(`
 			******************************************************************
