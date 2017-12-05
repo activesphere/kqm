@@ -92,7 +92,8 @@ echo "KQM Port Status: $(netstat -anlp | grep -i 8125)"
 
 echo "KQM Output until now:"
 cat /kqm/kqm.log
-echo "Waiting for 10 seconds."
+echo "Waiting for 30 seconds."
+sleep 30
 
 echo "Running tests."
 pushd tests
