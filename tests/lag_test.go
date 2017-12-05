@@ -135,7 +135,9 @@ func createConsumer(broker string, groupID string,
 		"session.timeout.ms":              6000,
 		"go.events.channel.enable":        true,
 		"go.application.rebalance.enable": true,
-		"default.topic.config":            kafka.ConfigMap{"auto.offset.reset": "earliest"}})
+		"default.topic.config":            kafka.ConfigMap{"auto.offset.reset": "earliest"},
+		"enable.auto.commit":              false,
+	})
 
 	if err != nil {
 		return nil, err
@@ -229,6 +231,7 @@ func TestLag(t *testing.T) {
 			if err != nil {
 				log.Fatalln("There was a problem while consuming message.", err)
 			}
+			consumer.CommitMessage(message)
 			log.Infof("Consumer Received Message on Topic: %s, Partn: "+
 				"%d, Message: %s", *message.TopicPartition.Topic,
 				message.TopicPartition.Partition, message.Value)
