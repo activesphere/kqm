@@ -245,12 +245,13 @@ func TestLag(t *testing.T) {
 
 		log.Printf(`
 			##################################################################
-			Start the consumer so that KQM becomes aware of the new consumer.
-			Check the lag, it should be zero since there are no messages
-			produced yet.
+			Produce a message and start the consumer to consume it so that
+			KQM becomes aware of the new consumer. Check the lag, it should
+			be zero since the message produced has already been consumed.
 			##################################################################
 		`)
-		consumeMessages(topic, groupID, 0)
+		produceMessages(topic, 1)
+		consumeMessages(topic, groupID, 1)
 
 		lag := getConsumerLag(conn, &monitor.PartitionOffset{
 			Topic:     topic,
