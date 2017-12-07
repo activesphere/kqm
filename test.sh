@@ -37,6 +37,8 @@ service zookeeper start
 echo "Waiting for 15 seconds."
 sleep 15
 echo "Zookeeper: $(findproc zookeeper)"
+echo "Zookeeper Log File:"
+cat /var/log/zookeeper/zookeeper.log
 
 echo "Starting Kafka."
 nohup kafka/bin/kafka-server-start.sh kafka/config/server.properties >kafka.log \
@@ -44,6 +46,8 @@ nohup kafka/bin/kafka-server-start.sh kafka/config/server.properties >kafka.log 
 echo "Waiting for 15 seconds."
 sleep 15
 echo "Kafka: $(findproc kafka)"
+echo "Kafka Log File:"
+cat kafka.log
 
 echo "Creating a Kafka Topics."
 kafka/bin/kafka-topics.sh --create --topic topic1 --zookeeper localhost:2181 \
@@ -66,21 +70,75 @@ nohup ./kqm --log-level=5 \
 	--interval=1 \
 	--statsd-addr localhost:8125 \
 	--statsd-prefix prefix_demo \
-	localhost:9092 > kqm.log 2>&1 &
-echo "Waiting for half a minute."
-sleep 30
+	localhost:9092 > /kqm/kqm.log 2>&1 &
+echo "Waiting for 10 seconds."
+sleep 10
 echo "KQM: $(findproc kqm)"
 
+pushd /kqm
 echo "Start a Consumer to the __consumer_offsets topic."
-nohup /kqm/kafka/bin/kafka-console-consumer.sh --topic __consumer_offsets \
+nohup kafka/bin/kafka-console-consumer.sh --topic __consumer_offsets \
     --bootstrap-server localhost:9092 \
     --formatter "kafka.coordinator.group.GroupMetadataManager\$OffsetsMessageFormatter" \
-    --from-beginning > /kqm/consumer.log 2>&1 &
+    --from-beginning > __consumer_offsets.log 2>&1 &
 echo "Waiting for 15 seconds."
 sleep 15
-echo "Consumer: $(findproc ConsoleConsumer)"
+echo "Consumer: $(findproc __consumer_offsets)"
+echo "Consumer Output:"
+cat __consumer_offsets.log
+
+echo "Start a Consumer to the topic1 topic."
+nohup kafka/bin/kafka-console-consumer.sh --topic topic1 \
+    --bootstrap-server localhost:9092 \
+    --from-beginning > topic1.log 2>&1 &
+echo "Waiting for 15 seconds."
+sleep 15
+echo "Consumer: $(findproc topic1)"
+echo "Consumer Output:"
+cat topic1.log
+
+echo "Start a Consumer to the topic2 topic."
+nohup kafka/bin/kafka-console-consumer.sh --topic topic2 \
+    --bootstrap-server localhost:9092 \
+    --from-beginning > topic2.log 2>&1 &
+echo "Waiting for 15 seconds."
+sleep 15
+echo "Consumer: $(findproc topic2)"
+echo "Consumer Output:"
+cat topic2.log
+
+echo "Start a Consumer to the topic3 topic."
+nohup kafka/bin/kafka-console-consumer.sh --topic topic3 \
+    --bootstrap-server localhost:9092 \
+    --from-beginning > topic3.log 2>&1 &
+echo "Waiting for 15 seconds."
+sleep 15
+echo "Consumer: $(findproc topic3)"
+echo "Consumer Output:"
+cat topic3.log
+
+echo "Start a Consumer to the topic4 topic."
+nohup kafka/bin/kafka-console-consumer.sh --topic topic4 \
+    --bootstrap-server localhost:9092 \
+    --from-beginning > topic4.log 2>&1 &
+echo "Waiting for 15 seconds."
+sleep 15
+echo "Consumer: $(findproc topic2)"
+echo "Consumer Output:"
+cat topic4.log
+
+popd
 
 echo "KQM Port Status: $(netstat -anlp | grep -i 8125)"
+count=1
+while [ $count -le 5 ]
+do
+echo "KQM Output until now:"
+cat /kqm/kqm.log
+echo "Waiting for 10 seconds."
+sleep 10
+((count++))
+done
 
 echo "Running tests."
 pushd tests

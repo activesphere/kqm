@@ -1,4 +1,4 @@
-**KQM**: Lag Monitor for Kafka
+**KQM**: Lag Monitor for Kafka [![Build Status](https://travis-ci.org/activesphere/kqm.svg?branch=master)](https://travis-ci.org/activesphere/kqm)
 ===================
 
 What it is

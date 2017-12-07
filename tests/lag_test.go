@@ -112,14 +112,19 @@ func consumerEvents(consumer *kafka.Consumer) (*kafka.Message, error) {
 		case event := <-consumer.Events():
 			switch eventType := event.(type) {
 			case kafka.AssignedPartitions:
+				log.Debugln("Consumer: AssignedPartitions event received.")
 				consumer.Assign(eventType.Partitions)
 			case kafka.RevokedPartitions:
+				log.Debugln("Consumer: RevokedPartitions event received.")
 				consumer.Unassign()
 			case *kafka.Message:
+				log.Debugln("Consumer: Message event received.")
 				return eventType, nil
 			case kafka.PartitionEOF:
-				log.Debugf("Reached %v", event)
+				log.Debugf("Consumer: PartitionEOF event received. Reached %v",
+					event)
 			case kafka.Error:
+				log.Debugln("Consumer: ERROR event received.")
 				return nil, eventType
 			}
 		}
@@ -134,8 +139,11 @@ func createConsumer(broker string, groupID string,
 		"group.id":                        groupID,
 		"session.timeout.ms":              6000,
 		"go.events.channel.enable":        true,
-		"go.application.rebalance.enable": true,
-		"default.topic.config":            kafka.ConfigMap{"auto.offset.reset": "earliest"}})
+		"go.events.channel.size":          1,
+		"go.application.rebalance.enable": false,
+		"enable.auto.commit":              false,
+		"default.topic.config":            kafka.ConfigMap{"auto.offset.reset": "earliest"},
+	})
 
 	if err != nil {
 		return nil, err
@@ -158,15 +166,20 @@ func equalPartitionOffsets(p1, p2 *monitor.PartitionOffset) bool {
 }
 
 func getConsumerLag(conn *net.UDPConn, srcPartOff *monitor.PartitionOffset) int64 {
+	log.Debugln("Getting consumer lag from statsd-mimicking UDP server.")
 	buffer := make([]byte, 512)
 	for {
+		log.Debugln("UDP server is reading from UDP port 8125.")
 		n, _, err := conn.ReadFromUDP(buffer)
 		if err != nil {
 			log.Errorln("Error reading from UDP: ", err)
 			continue
 		}
 
-		recvPartOff, err := parseGauge(string(buffer[:n]))
+		recvData := string(buffer[:n])
+		log.Debugf("UDP Server received data: %s", recvData)
+
+		recvPartOff, err := parseGauge(recvData)
 		if err != nil {
 			os.Exit(1)
 		}
@@ -229,13 +242,31 @@ func TestLag(t *testing.T) {
 			if err != nil {
 				log.Fatalln("There was a problem while consuming message.", err)
 			}
-			log.Infof("Consumer Received Message on Topic: %s, Partn: "+
-				"%d, Message: %s", *message.TopicPartition.Topic,
-				message.TopicPartition.Partition, message.Value)
+			_, err = consumer.CommitMessage(message)
+			if err != nil {
+				log.Debugf("There was a problem while committing message: %s",
+					message.Value)
+			} else {
+				log.Infof("Consumer Received Message on Topic: %s, Partn: "+
+					"%d, Message: %s", *message.TopicPartition.Topic,
+					message.TopicPartition.Partition, message.Value)
+			}
 		}
 
+		log.Debugln("Unassigning Partition from the Consumer.")
+		consumer.Unassign()
+
 		log.Infoln("Closing the Consumer.")
-		consumer.Close()
+		err = consumer.Close()
+		if err != nil {
+			log.Debugf("There was a problem while closing the consumer with "+
+				"GroupID: %s, Topic: %s, MessageCount: %s", groupID,
+				topic, numMessages)
+		} else {
+			log.Debugln("Messages consumed successfully for "+
+				"GroupID: %s, Topic: %s, MessageCount: %s", groupID,
+				topic, numMessages)
+		}
 	}
 
 	checkLag := func(topic string, groupID string, messageCount int) {
