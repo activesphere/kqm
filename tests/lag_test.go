@@ -160,9 +160,10 @@ func equalPartitionOffsets(p1, p2 *monitor.PartitionOffset) bool {
 }
 
 func getConsumerLag(conn *net.UDPConn, srcPartOff *monitor.PartitionOffset) int64 {
+	log.Debugln("Getting consumer lag from statsd-mimicking UDP server.")
 	buffer := make([]byte, 512)
 	for {
-		log.Debugln("UDP server is reading from UDP port.")
+		log.Debugln("UDP server is reading from UDP port 8125.")
 		n, _, err := conn.ReadFromUDP(buffer)
 		if err != nil {
 			log.Errorln("Error reading from UDP: ", err)
@@ -250,6 +251,10 @@ func TestLag(t *testing.T) {
 		err = consumer.Close()
 		if err != nil {
 			log.Debugf("There was a problem while closing the consumer with "+
+				"GroupID: %s, Topic: %s, MessageCount: %s", groupID,
+				topic, numMessages)
+		} else {
+			log.Debugln("Messages consumed successfully for "+
 				"GroupID: %s, Topic: %s, MessageCount: %s", groupID,
 				topic, numMessages)
 		}
