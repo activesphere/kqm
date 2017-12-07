@@ -235,14 +235,24 @@ func TestLag(t *testing.T) {
 			if err != nil {
 				log.Fatalln("There was a problem while consuming message.", err)
 			}
-			consumer.CommitMessage(message)
-			log.Infof("Consumer Received Message on Topic: %s, Partn: "+
-				"%d, Message: %s", *message.TopicPartition.Topic,
-				message.TopicPartition.Partition, message.Value)
+			_, err = consumer.CommitMessage(message)
+			if err != nil {
+				log.Debugf("There was a problem while committing message: %s",
+					message.Value)
+			} else {
+				log.Infof("Consumer Received Message on Topic: %s, Partn: "+
+					"%d, Message: %s", *message.TopicPartition.Topic,
+					message.TopicPartition.Partition, message.Value)
+			}
 		}
 
 		log.Infoln("Closing the Consumer.")
-		consumer.Close()
+		err = consumer.Close()
+		if err != nil {
+			log.Debugf("There was a problem while closing the consumer with "+
+				"GroupID: %s, Topic: %s, MessageCount: %s", groupID,
+				topic, numMessages)
+		}
 	}
 
 	checkLag := func(topic string, groupID string, messageCount int) {
