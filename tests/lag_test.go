@@ -225,9 +225,10 @@ func TestLag(t *testing.T) {
 				log.Fatalln("There was a problem in producing the message.")
 			}
 			producedPartOff := toPartitionOffset(message)
-			log.Infof("Produced Message on topic: %s, partn: %d.",
+			log.Debugf("Produced Message on topic: %s, partn: %d.",
 				producedPartOff.Topic, producedPartOff.Partition)
 		}
+		log.Infof("Produced %d Messages on topic: %s.", num, topic)
 	}
 
 	consumeMessages := func(topic string, groupID string, numMessages int) {
@@ -252,6 +253,8 @@ func TestLag(t *testing.T) {
 					message.TopicPartition.Partition, message.Value)
 			}
 		}
+		log.Infof("Consumer with group %s received %d messages on topic %s.",
+			groupID, numMessages, topic)
 
 		log.Debugln("Unassigning Partition from the Consumer.")
 		consumer.Unassign()
