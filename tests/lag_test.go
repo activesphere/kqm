@@ -328,8 +328,8 @@ func TestLag(t *testing.T) {
 		assert.FailNow(t, "FAILURE. Non-zero lag even after multiple retries.")
 	}
 
-	// Check from 10 to 10000 messages.
-	for i := 1; i <= 4; i++ {
+	// Check from 10 to 1000 messages.
+	for i := 1; i <= 3; i++ {
 		scale := int(math.Pow10(i))
 		log.Printf(`
 			******************************************************************
