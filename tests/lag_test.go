@@ -112,14 +112,19 @@ func consumerEvents(consumer *kafka.Consumer) (*kafka.Message, error) {
 		case event := <-consumer.Events():
 			switch eventType := event.(type) {
 			case kafka.AssignedPartitions:
+				log.Debugln("Consumer: AssignedPartitions event received.")
 				consumer.Assign(eventType.Partitions)
 			case kafka.RevokedPartitions:
+				log.Debugln("Consumer: RevokedPartitions event received.")
 				consumer.Unassign()
 			case *kafka.Message:
+				log.Debugln("Consumer: Message event received.")
 				return eventType, nil
 			case kafka.PartitionEOF:
-				log.Debugf("Reached %v", event)
+				log.Debugf("Consumer: PartitionEOF event received. Reached %v",
+					event)
 			case kafka.Error:
+				log.Debugln("Consumer: ERROR event received.")
 				return nil, eventType
 			}
 		}
@@ -134,9 +139,10 @@ func createConsumer(broker string, groupID string,
 		"group.id":                        groupID,
 		"session.timeout.ms":              6000,
 		"go.events.channel.enable":        true,
-		"go.application.rebalance.enable": true,
-		"default.topic.config":            kafka.ConfigMap{"auto.offset.reset": "earliest"},
+		"go.events.channel.size":          1,
+		"go.application.rebalance.enable": false,
 		"enable.auto.commit":              false,
+		"default.topic.config":            kafka.ConfigMap{"auto.offset.reset": "earliest"},
 	})
 
 	if err != nil {
@@ -246,6 +252,9 @@ func TestLag(t *testing.T) {
 					message.TopicPartition.Partition, message.Value)
 			}
 		}
+
+		log.Debugln("Unassigning Partition from the Consumer.")
+		consumer.Unassign()
 
 		log.Infoln("Closing the Consumer.")
 		err = consumer.Close()
