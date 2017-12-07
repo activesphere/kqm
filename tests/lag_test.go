@@ -192,7 +192,7 @@ func getConsumerLag(conn *net.UDPConn, srcPartOff *monitor.PartitionOffset) int6
 
 // TestLag : Basic test for Lag.
 func TestLag(t *testing.T) {
-	log.SetLevel(log.DebugLevel)
+	log.SetLevel(log.InfoLevel)
 
 	serverAddr, err := net.ResolveUDPAddr("udp", ":8125")
 	if err != nil {
@@ -247,7 +247,7 @@ func TestLag(t *testing.T) {
 				log.Debugf("There was a problem while committing message: %s",
 					message.Value)
 			} else {
-				log.Infof("Consumer Received Message on Topic: %s, Partn: "+
+				log.Debugf("Consumer Received Message on Topic: %s, Partn: "+
 					"%d, Message: %s", *message.TopicPartition.Topic,
 					message.TopicPartition.Partition, message.Value)
 			}
@@ -260,11 +260,11 @@ func TestLag(t *testing.T) {
 		err = consumer.Close()
 		if err != nil {
 			log.Debugf("There was a problem while closing the consumer with "+
-				"GroupID: %s, Topic: %s, MessageCount: %s", groupID,
+				"GroupID: %s, Topic: %s, MessageCount: %d", groupID,
 				topic, numMessages)
 		} else {
 			log.Debugf("Messages consumed successfully for "+
-				"GroupID: %s, Topic: %s, MessageCount: %s", groupID,
+				"GroupID: %s, Topic: %s, MessageCount: %d", groupID,
 				topic, numMessages)
 		}
 	}
