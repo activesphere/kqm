@@ -80,12 +80,53 @@ echo "Start a Consumer to the __consumer_offsets topic."
 nohup kafka/bin/kafka-console-consumer.sh --topic __consumer_offsets \
     --bootstrap-server localhost:9092 \
     --formatter "kafka.coordinator.group.GroupMetadataManager\$OffsetsMessageFormatter" \
-    --from-beginning > consumer.log 2>&1 &
+    --from-beginning > __consumer_offsets.log 2>&1 &
 echo "Waiting for 15 seconds."
 sleep 15
-echo "Consumer: $(findproc ConsoleConsumer)"
+echo "Consumer: $(findproc __consumer_offsets)"
 echo "Consumer Output:"
-cat consumer.log
+cat __consumer_offsets.log
+
+echo "Start a Consumer to the topic1 topic."
+nohup kafka/bin/kafka-console-consumer.sh --topic topic1 \
+    --bootstrap-server localhost:9092 \
+    --from-beginning > topic1.log 2>&1 &
+echo "Waiting for 15 seconds."
+sleep 15
+echo "Consumer: $(findproc topic1)"
+echo "Consumer Output:"
+cat topic1.log
+
+echo "Start a Consumer to the topic2 topic."
+nohup kafka/bin/kafka-console-consumer.sh --topic topic2 \
+    --bootstrap-server localhost:9092 \
+    --from-beginning > topic2.log 2>&1 &
+echo "Waiting for 15 seconds."
+sleep 15
+echo "Consumer: $(findproc topic2)"
+echo "Consumer Output:"
+cat topic2.log
+
+echo "Start a Consumer to the topic3 topic."
+nohup kafka/bin/kafka-console-consumer.sh --topic topic3 \
+    --bootstrap-server localhost:9092 \
+    --from-beginning > topic3.log 2>&1 &
+echo "Waiting for 15 seconds."
+sleep 15
+echo "Consumer: $(findproc topic3)"
+echo "Consumer Output:"
+cat topic3.log
+
+echo "Start a Consumer to the topic4 topic."
+nohup kafka/bin/kafka-console-consumer.sh --topic topic4 \
+    --bootstrap-server localhost:9092 \
+    --from-beginning > topic4.log 2>&1 &
+echo "Waiting for 15 seconds."
+sleep 15
+echo "Consumer: $(findproc topic2)"
+echo "Consumer Output:"
+cat topic4.log
+
 popd
 
 echo "KQM Port Status: $(netstat -anlp | grep -i 8125)"
