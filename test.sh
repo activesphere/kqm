@@ -38,7 +38,7 @@ function log_kqm_status() {
 	while [ $count -le 6 ]
 	do
 	echo "KQM Output:"
-	cat /kqm/kqm.log
+	tail -n 10 /kqm/kqm.log
 	echo "Waiting for 10 seconds."
 	sleep 10
 	((count++))
@@ -56,7 +56,7 @@ function start_consumer() {
 	sleep 15
 	echo "Consumer: $(find_proc $1)"
 	echo "Consumer Output:"
-	cat "$1.log"
+	tail -n 10 "$1.log"
 	popd
 }
 
@@ -66,7 +66,7 @@ echo "Waiting for 15 seconds."
 sleep 15
 echo "Zookeeper: $(find_proc zookeeper)"
 echo "Zookeeper Log File:"
-cat /var/log/zookeeper/zookeeper.log
+tail -n 10 /var/log/zookeeper/zookeeper.log
 
 echo "Starting Kafka."
 nohup kafka/bin/kafka-server-start.sh kafka/config/server.properties >kafka.log \
@@ -75,7 +75,7 @@ echo "Waiting for 15 seconds."
 sleep 15
 echo "Kafka: $(find_proc kafka)"
 echo "Kafka Log File:"
-cat kafka.log
+tail -n 10 kafka.log
 
 echo "Creating a Kafka Topics."
 kafka/bin/kafka-topics.sh --create --topic topic1 --zookeeper localhost:2181 \
@@ -96,7 +96,7 @@ go build
 start_consumer __consumer_offsets
 
 echo "Starting KQM."
-nohup ./kqm --log-level=5 \
+nohup ./kqm --log-level=2 \
 	--interval=1 \
 	--statsd-addr localhost:8125 \
 	--statsd-prefix prefix_demo \
