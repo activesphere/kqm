@@ -35,10 +35,10 @@ function find_proc() {
 function log_kqm_status() {
 	echo "KQM Port Status: $(netstat -anlp | grep -i 8125)"
 	count=1
-	while [ $count -le 6 ]
+	while [ $count -le 3 ]
 	do
 	echo "KQM Output:"
-	tail -n 10 /kqm/kqm.log
+	tail -n 5 /kqm/kqm.log
 	echo "Waiting for 10 seconds."
 	sleep 10
 	((count++))
@@ -56,7 +56,7 @@ function start_consumer() {
 	sleep 15
 	echo "Consumer: $(find_proc $1)"
 	echo "Consumer Output:"
-	tail -n 10 "$1.log"
+	tail -n 5 "$1.log"
 	popd
 }
 
@@ -66,7 +66,7 @@ echo "Waiting for 15 seconds."
 sleep 15
 echo "Zookeeper: $(find_proc zookeeper)"
 echo "Zookeeper Log File:"
-tail -n 10 /var/log/zookeeper/zookeeper.log
+tail -n 5 /var/log/zookeeper/zookeeper.log
 
 echo "Starting Kafka."
 nohup kafka/bin/kafka-server-start.sh kafka/config/server.properties >kafka.log \
@@ -75,7 +75,7 @@ echo "Waiting for 15 seconds."
 sleep 15
 echo "Kafka: $(find_proc kafka)"
 echo "Kafka Log File:"
-tail -n 10 kafka.log
+tail -n 5 kafka.log
 
 echo "Creating a Kafka Topics."
 kafka/bin/kafka-topics.sh --create --topic topic1 --zookeeper localhost:2181 \
@@ -101,20 +101,12 @@ nohup ./kqm --log-level=2 \
 	--statsd-addr localhost:8125 \
 	--statsd-prefix prefix_demo \
 	localhost:9092 > /kqm/kqm.log 2>&1 &
-echo "Waiting for 20 seconds."
-sleep 20
+echo "Waiting for 15 seconds."
+sleep 15
 echo "KQM: $(find_proc kqm)"
 
 log_kqm_status
 
-start_consumer topic1
-start_consumer topic2
-start_consumer topic3
-start_consumer topic4
-
-log_kqm_status
-
-popd
 echo "Running tests."
 pushd tests
-go test -timeout 20m -v lag_test.go
+go test -v lag_test.go
