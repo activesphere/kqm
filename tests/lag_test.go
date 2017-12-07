@@ -162,13 +162,17 @@ func equalPartitionOffsets(p1, p2 *monitor.PartitionOffset) bool {
 func getConsumerLag(conn *net.UDPConn, srcPartOff *monitor.PartitionOffset) int64 {
 	buffer := make([]byte, 512)
 	for {
+		log.Debugln("UDP server is reading from UDP port.")
 		n, _, err := conn.ReadFromUDP(buffer)
 		if err != nil {
 			log.Errorln("Error reading from UDP: ", err)
 			continue
 		}
 
-		recvPartOff, err := parseGauge(string(buffer[:n]))
+		recvData := string(buffer[:n])
+		log.Debugf("UDP Server received data: %s", recvData)
+
+		recvPartOff, err := parseGauge(recvData)
 		if err != nil {
 			os.Exit(1)
 		}
