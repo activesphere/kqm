@@ -142,4 +142,4 @@ done
 
 echo "Running tests."
 pushd tests
-go test -v lag_test.go
+go test -timeout 20m -v lag_test.go

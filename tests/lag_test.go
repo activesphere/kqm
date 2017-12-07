@@ -263,7 +263,7 @@ func TestLag(t *testing.T) {
 				"GroupID: %s, Topic: %s, MessageCount: %s", groupID,
 				topic, numMessages)
 		} else {
-			log.Debugln("Messages consumed successfully for "+
+			log.Debugf("Messages consumed successfully for "+
 				"GroupID: %s, Topic: %s, MessageCount: %s", groupID,
 				topic, numMessages)
 		}
