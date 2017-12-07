@@ -89,11 +89,15 @@ cat consumer.log
 popd
 
 echo "KQM Port Status: $(netstat -anlp | grep -i 8125)"
-
+count=1
+while [ $count -le 5 ]
+do
 echo "KQM Output until now:"
 cat /kqm/kqm.log
-echo "Waiting for 30 seconds."
-sleep 30
+echo "Waiting for 10 seconds."
+sleep 10
+((count++))
+done
 
 echo "Running tests."
 pushd tests
