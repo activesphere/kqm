@@ -24,4 +24,6 @@ popd
 # Setup KQM
 mkdir -p /kqm/go/src/github.com/activesphere
 pushd /kqm/go/src/github.com/activesphere
-git clone https://github.com/activesphere/kqm
+BRANCH=$1
+echo "Current Branch: $BRANCH"
+git clone --depth=50 --branch=$BRANCH https://github.com/activesphere/kqm

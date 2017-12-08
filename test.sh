@@ -33,7 +33,7 @@ function start_consumer() {
 }
 
 echo "Installing dependencies."
-./install.sh > /dev/null 2>&1
+./install.sh $1 > /dev/null 2>&1
 echo "Dependency installation complete."
 
 echo "Starting Zookeeper."
