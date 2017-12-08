@@ -272,6 +272,23 @@ func TestLag(t *testing.T) {
 		}
 	}
 
+	assertRetry := func(targetFn func() bool) {
+		waitInSeconds := 5
+		for waitInSeconds <= 60 {
+			log.Infof("Waiting for %d seconds before result validation.",
+				waitInSeconds)
+			time.Sleep(time.Duration(waitInSeconds) * time.Second)
+			if targetFn() {
+				return
+			}
+			log.Infof("Unacceptable result obtained, retrying with a greater " +
+				"sleep time.")
+			waitInSeconds += 5
+		}
+		assert.FailNow(t, "FAILURE. Unacceptable results even after "+
+			"multiple retries.")
+	}
+
 	checkLag := func(topic string, groupID string, messageCount int) {
 
 		log.Printf(`
@@ -303,12 +320,7 @@ func TestLag(t *testing.T) {
 		produceMessages(topic, messageCount)
 		consumeMessages(topic, groupID, messageCount)
 
-		waitInSeconds := 5
-		for waitInSeconds <= 60 {
-			log.Infof("Waiting for %d seconds for the updates to reflect "+
-				"in KQM.", waitInSeconds)
-			time.Sleep(time.Duration(waitInSeconds) * time.Second)
-
+		assertRetry(func() bool {
 			lag = getConsumerLag(conn, &monitor.PartitionOffset{
 				Topic:     topic,
 				Partition: partition,
@@ -318,14 +330,10 @@ func TestLag(t *testing.T) {
 				topic, partition, lag)
 
 			if lag == 0 {
-				return
+				return true
 			}
-
-			log.Infof("Non-zero lag obtained, retrying with a greater " +
-				"sleep time.")
-			waitInSeconds += 5
-		}
-		assert.FailNow(t, "FAILURE. Non-zero lag even after multiple retries.")
+			return false
+		})
 
 		log.Printf(`
 			##################################################################
@@ -337,12 +345,7 @@ func TestLag(t *testing.T) {
 		produceMessages(topic, messageCount)
 		consumeMessages(topic, groupID, messageCount-5)
 
-		waitInSeconds = 5
-		for waitInSeconds <= 60 {
-			log.Infof("Waiting for %d seconds for the updates to reflect "+
-				"in KQM.", waitInSeconds)
-			time.Sleep(time.Duration(waitInSeconds) * time.Second)
-
+		assertRetry(func() bool {
 			lag = getConsumerLag(conn, &monitor.PartitionOffset{
 				Topic:     topic,
 				Partition: partition,
@@ -352,15 +355,10 @@ func TestLag(t *testing.T) {
 				topic, partition, lag)
 
 			if lag == 5 {
-				return
+				return true
 			}
-
-			log.Infof("Unacceptable lag obtained, retrying with a greater " +
-				"sleep time.")
-			waitInSeconds += 5
-		}
-		assert.FailNow(t,
-			"FAILURE. Unacceptable lag even after multiple retries.")
+			return false
+		})
 	}
 
 	// Check from 10 to 1000 messages.
