@@ -39,6 +39,7 @@ function create_topics() {
 		kafka/bin/kafka-topics.sh --create --topic topic$topicIndex \
 			--zookeeper localhost:2181 \
 			--partitions 4 --replication-factor 1
+		((topicIndex++))
 	done
 }
 
@@ -63,14 +64,14 @@ echo "Kafka: $(find_proc kafka)"
 echo "Kafka Log File:"
 tail -n 5 kafka.log
 
-echo "Creating a Kafka Topics."
+echo "Creating Kafka Topics."
+create_topics 4
 
 echo "Setting up KQM."
 mkdir -p /kqm/go/src/github.com/activesphere
 pushd /kqm/go/src/github.com/activesphere
-BRANCH=$1
-echo "Current Branch: $BRANCH"
-git clone --depth=50 --branch="$BRANCH" https://github.com/activesphere/kqm
+echo "Current Branch: $1"
+git clone --depth=50 --branch="$1" https://github.com/activesphere/kqm
 
 echo "Building KQM."
 export GOPATH=/kqm/go
