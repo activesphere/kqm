@@ -326,6 +326,41 @@ func TestLag(t *testing.T) {
 			waitInSeconds += 5
 		}
 		assert.FailNow(t, "FAILURE. Non-zero lag even after multiple retries.")
+
+		log.Printf(`
+			##################################################################
+			Produce %d messages and consume all but 5 using the same consumer.
+			Check the lag for the consumer, it should be 5 since the consumer
+			is 5 messages behind the latest produced message.
+			##################################################################
+		`, messageCount)
+		produceMessages(topic, messageCount)
+		consumeMessages(topic, groupID, messageCount-5)
+
+		waitInSeconds = 5
+		for waitInSeconds <= 60 {
+			log.Infof("Waiting for %d seconds for the updates to reflect "+
+				"in KQM.", waitInSeconds)
+			time.Sleep(time.Duration(waitInSeconds) * time.Second)
+
+			lag = getConsumerLag(conn, &monitor.PartitionOffset{
+				Topic:     topic,
+				Partition: partition,
+				Group:     groupID,
+			})
+			log.Infof("Lag at (Group: %s, Topic: %s, Partn: %d): %d", groupID,
+				topic, partition, lag)
+
+			if lag == 5 {
+				return
+			}
+
+			log.Infof("Unacceptable lag obtained, retrying with a greater " +
+				"sleep time.")
+			waitInSeconds += 5
+		}
+		assert.FailNow(t,
+			"FAILURE. Unacceptable lag even after multiple retries.")
 	}
 
 	// Check from 10 to 1000 messages.
