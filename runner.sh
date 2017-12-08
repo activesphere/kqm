@@ -1,8 +1,9 @@
 #!/bin/bash
 
 # Get the current branch from Travis CI environment variables.
-export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ];
-    then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
+BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ];
+    then echo "$TRAVIS_BRANCH"; else echo "$TRAVIS_PULL_REQUEST_BRANCH"; fi)
+export BRANCH
 echo "Current Branch: $BRANCH"
 
 # Start Docker Compose.

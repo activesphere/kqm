@@ -20,10 +20,3 @@ tar xvf v0.11.1.tar.gz
 pushd /kqm/librdkafka-0.11.1
 ./configure --prefix /usr && make && make install
 popd
-
-# Setup KQM
-mkdir -p /kqm/go/src/github.com/activesphere
-pushd /kqm/go/src/github.com/activesphere
-BRANCH=$1
-echo "Current Branch: $BRANCH"
-git clone --depth=50 --branch=$BRANCH https://github.com/activesphere/kqm
