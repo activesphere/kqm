@@ -65,7 +65,7 @@ echo "Kafka Log File:"
 tail -n 5 kafka.log
 
 echo "Creating Kafka Topics."
-create_topics 4
+create_topics 3
 
 echo "Setting up KQM."
 mkdir -p /kqm/go/src/github.com/activesphere
