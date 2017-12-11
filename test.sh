@@ -48,7 +48,7 @@ function create_topics() {
 }
 
 echo "Installing dependencies."
-./install.sh
+./install.sh > /dev/null 2>&1
 echo "Dependency installation complete."
 
 echo "Creating Kafka Topics."
