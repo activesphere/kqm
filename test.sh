@@ -41,7 +41,7 @@ function create_topics() {
 	while [ $topicIndex -le "$1" ]
 	do
 		kafka/bin/kafka-topics.sh --create --topic topic$topicIndex \
-			--zookeeper zookeeper:2181 \
+			--zookeeper kafka:2181 \
 			--partitions 4 --replication-factor 1
 		((topicIndex++))
 	done

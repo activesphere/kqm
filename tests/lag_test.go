@@ -205,7 +205,7 @@ func TestLag(t *testing.T) {
 	defer conn.Close()
 
 	const (
-		broker        = "localhost:9092"
+		broker        = "kafka:9092"
 		topicPrefix   = "topic"
 		groupIDPrefix = "clark-kent-"
 		partition     = 0
