@@ -1,10 +1,8 @@
 #!/bin/bash
 
 # Update dependencies
-apt-get clean && apt-get update
-apt-get install -y python zookeeper zookeeperd wget software-properties-common git net-tools
-
-# Install Go
+apt-get update && apt-get install -y python software-properties-common \
+    wget git net-tools default-jre
 add-apt-repository -y ppa:longsleep/golang-backports
 apt-get update
 apt-get install -y golang-go
