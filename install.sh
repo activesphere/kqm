@@ -1,4 +1,7 @@
 #!/bin/bash
+#
+# This is a script to install the dependencies for the test runner.
+#
 
 # Update dependencies
 apt-get update && apt-get install -y python software-properties-common \

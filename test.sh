@@ -1,4 +1,8 @@
 #!/bin/bash
+#
+# This is a script to run the tests and return an exit code
+# (non-zero is error).
+#
 
 function find_proc() {
 	ps aux | grep -i "$1" | grep -v grep
