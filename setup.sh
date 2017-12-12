@@ -35,5 +35,5 @@ echo "Kafka: $(find_proc kafka)"
 echo "Kafka Log File:"
 tail -n 5 kafka.log
 
-# Wait until SIGINT is received.
-./wait_for_sigint.sh kafka
+# Tailing Zookeeper and Kafka logs.
+tail -f /var/log/zookeeper/zookeeper.log kafka.log

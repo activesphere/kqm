@@ -6,7 +6,7 @@ services:
       dockerfile: Dockerfile-kafka
     ports:
       - "9092:9092"
-    command: "/kafka/setup.sh > /dev/null 2>&1"
+    command: "/kafka/setup.sh"
   testrunner:
     build:
       context: .
