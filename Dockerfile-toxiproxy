@@ -1,0 +1,4 @@
+FROM shopify/toxiproxy:latest
+WORKDIR /toxiproxy
+COPY ["./proxies.sh", "./"]
+RUN chmod +x ./proxies.sh
