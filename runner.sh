@@ -7,7 +7,7 @@ export BRANCH
 echo "Current Branch: $BRANCH"
 
 # Start Docker Compose.
-docker-compose build && docker-compose up -d
+docker-compose build && docker-compose up
 
 # Record the Test Runner Exit Code to return.
 RUNNER_EXIT_CODE=$(docker wait kqm_testrunner_1)

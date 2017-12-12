@@ -34,7 +34,3 @@ sleep 10
 echo "Kafka: $(find_proc kafka)"
 echo "Kafka Log File:"
 tail -n 5 kafka.log
-
-# Tail for logs from Zookeeper and Kafka.
-echo "Tailing for Zookeeper and Kafka logs."
-tail -f /var/log/zookeeper/zookeeper.log kafka.log
