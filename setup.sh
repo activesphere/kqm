@@ -34,3 +34,6 @@ sleep 10
 echo "Kafka: $(find_proc kafka)"
 echo "Kafka Log File:"
 tail -n 5 kafka.log
+
+# Wait until SIGINT is received.
+./wait_for_sigint kafka

@@ -7,7 +7,6 @@ services:
     ports:
       - "9092:9092"
     command: "/kafka/setup.sh > /dev/null 2>&1"
-    tty: true
   testrunner:
     build:
       context: .
