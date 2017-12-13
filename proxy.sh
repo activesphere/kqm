@@ -6,7 +6,7 @@ wget -O toxiproxy-cli https://github.com/Shopify/toxiproxy/releases/download/v2.
 chmod +x toxiproxy toxiproxy-cli
 
 # Start the toxiproxy server.
-nohup ./toxiproxy > toxiproxy.log 2>&1 &
+nohup ./toxiproxy "-host=0.0.0.0" > toxiproxy.log 2>&1 &
 sleep 5
 
 # Create a Proxy for Kafka.
