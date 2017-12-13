@@ -1,5 +1,3 @@
-#!/bin/bash
-
 # NOTE: Before using any of these commands, make sure you are in the kafka dir.
 
 # Start Kafka Server:

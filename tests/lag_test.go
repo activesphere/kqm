@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Shopify/toxiproxy/client"
 	"github.com/activesphere/kqm/monitor"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	log "github.com/sirupsen/logrus"
@@ -205,7 +206,7 @@ func TestLag(t *testing.T) {
 	defer conn.Close()
 
 	const (
-		broker        = "localhost:9092"
+		broker        = "kafka:9092"
 		topicPrefix   = "topic"
 		groupIDPrefix = "clark-kent-"
 		partition     = 0
@@ -361,6 +362,14 @@ func TestLag(t *testing.T) {
 		})
 	}
 
+	// Create a Toxiproxy Client.
+	toxiproxyClient := toxiproxy.NewClient("toxiproxy:8474")
+	proxy, err := toxiproxyClient.Proxy("kafka")
+	if err != nil {
+		log.Fatalln("Something went wrong while fetching proxy information: ",
+			err)
+	}
+
 	// Check from 10 to 1000 messages.
 	for i := 1; i <= 3; i++ {
 		scale := int(math.Pow10(i))
@@ -373,5 +382,21 @@ func TestLag(t *testing.T) {
 		topic := topicPrefix + index
 		groupID := groupIDPrefix + index
 		checkLag(topic, groupID, scale)
+
+		log.Println(`
+			******************************************************************
+			Take down the connection using Toxiproxy and wait for some time
+			before getting the connection up again. Then resume the tests
+			for the next scale. KQM should be able to properly retry and
+			able to report correct lags irrespective of the network faults.
+			******************************************************************
+		`)
+		log.Infoln("Taking down the Proxy between KQM and Kafka.")
+		proxy.Disable()
+		log.Infoln("Waiting for 30 seconds before getting the connection up.")
+		time.Sleep(30 * time.Second)
+		log.Infoln("Getting the Proxy back up again.")
+		proxy.Enable()
+		log.Infoln("Proxy between Kafka and KQM is up again. Resuming tests.")
 	}
 }

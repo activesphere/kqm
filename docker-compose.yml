@@ -1,5 +1,28 @@
 version: '3'
 services:
-  test_runner:
-    build: .
+  testrunner:
+    build:
+      context: .
+      dockerfile: Dockerfile-testrunner
     command: "/kqm/test.sh ${BRANCH}"
+    depends_on:
+      - toxiproxy
+  toxiproxy:
+    ports:
+      - "8474"
+      - "9092"
+      - "2181"
+    build:
+      context: .
+      dockerfile: Dockerfile-toxiproxy
+    command: "/toxiproxy/proxy.sh"
+    depends_on:
+      - kafka
+  kafka:
+    build:
+      context: .
+      dockerfile: Dockerfile-kafka
+    ports:
+      - "9092"
+      - "2181"
+    command: "/kafka/setup.sh"

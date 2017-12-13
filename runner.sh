@@ -7,13 +7,19 @@ export BRANCH
 echo "Current Branch: $BRANCH"
 
 # Start Docker Compose.
-docker-compose build && docker-compose up
+docker-compose up -d
+
+# Print the logs until the Container exits.
+docker logs -f kqm_testrunner_1
 
 # Record the Test Runner Exit Code to return.
-RUNNER_EXIT_CODE=$(docker wait kqm_test_runner_1)
+RUNNER_EXIT_CODE=$(docker wait kqm_testrunner_1)
+echo "Received Test Runner Exit Code: $RUNNER_EXIT_CODE"
 
 # Perform cleanup.
+echo "Cleaning up docker-compose debris."
 docker-compose kill && docker-compose rm -f
 
 # Return the Test Exit Code.
+echo "Done. Exiting with return code: $RUNNER_EXIT_CODE"
 exit "$RUNNER_EXIT_CODE"

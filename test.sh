@@ -1,4 +1,8 @@
 #!/bin/bash
+#
+# This is a script to run the tests and return an exit code
+# (non-zero is error).
+#
 
 function find_proc() {
 	ps aux | grep -i "$1" | grep -v grep
@@ -21,7 +25,7 @@ function start_consumer() {
 	pushd /kqm
 	echo "Start a Consumer to the $1 topic."
 	nohup kafka/bin/kafka-console-consumer.sh --topic "$1" \
-		--bootstrap-server localhost:9092 \
+		--bootstrap-server toxiproxy:9092 \
 		--formatter "kafka.coordinator.group.GroupMetadataManager\$OffsetsMessageFormatter" \
 		--from-beginning > "$1".log 2>&1 &
 	echo "Waiting for 10 seconds."
@@ -37,7 +41,7 @@ function create_topics() {
 	while [ $topicIndex -le "$1" ]
 	do
 		kafka/bin/kafka-topics.sh --create --topic topic$topicIndex \
-			--zookeeper localhost:2181 \
+			--zookeeper toxiproxy:2181 \
 			--partitions 4 --replication-factor 1
 		((topicIndex++))
 	done
@@ -46,23 +50,6 @@ function create_topics() {
 echo "Installing dependencies."
 ./install.sh > /dev/null 2>&1
 echo "Dependency installation complete."
-
-echo "Starting Zookeeper."
-service zookeeper start
-echo "Waiting for 10 seconds."
-sleep 10
-echo "Zookeeper: $(find_proc zookeeper)"
-echo "Zookeeper Log File:"
-tail -n 5 /var/log/zookeeper/zookeeper.log
-
-echo "Starting Kafka."
-nohup kafka/bin/kafka-server-start.sh kafka/config/server.properties >kafka.log \
-	2>&1 &
-echo "Waiting for 10 seconds."
-sleep 10
-echo "Kafka: $(find_proc kafka)"
-echo "Kafka Log File:"
-tail -n 5 kafka.log
 
 echo "Creating Kafka Topics."
 create_topics 3
@@ -85,7 +72,7 @@ nohup ./kqm --log-level=2 \
 	--interval=1 \
 	--statsd-addr localhost:8125 \
 	--statsd-prefix prefix_demo \
-	localhost:9092 > /kqm/kqm.log 2>&1 &
+	toxiproxy:9092 > /kqm/kqm.log 2>&1 &
 echo "Waiting for 10 seconds."
 sleep 10
 echo "KQM: $(find_proc kqm)"
