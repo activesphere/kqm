@@ -15,7 +15,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile-toxiproxy
-    command: "/toxiproxy/proxies.sh"
+    command: "/toxiproxy/proxy.sh"
     depends_on:
       - kafka
   kafka:

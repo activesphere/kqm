@@ -1,4 +1,4 @@
-FROM shopify/toxiproxy:latest
+FROM alpine:latest
 WORKDIR /toxiproxy
-COPY ["./proxies.sh", "./"]
-RUN chmod +x ./proxies.sh
+COPY ["./proxy.sh", "./"]
+RUN chmod +x ./proxy.sh

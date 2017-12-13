@@ -10,7 +10,7 @@ echo "Current Branch: $BRANCH"
 docker-compose up -d
 
 # Print the logs until the Container exits.
-docker logs -f kqm_toxiproxy_1
+docker logs -f kqm_testrunner_1
 
 # Record the Test Runner Exit Code to return.
 RUNNER_EXIT_CODE=$(docker wait kqm_testrunner_1)
