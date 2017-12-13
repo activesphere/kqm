@@ -148,7 +148,7 @@ func (qm *QueueMonitor) GetConsumerOffsets(ctx context.Context,
 	}
 
 	for _, pConsumer := range pConsumers {
-		go qm.consumeMessage(errorChannel, pConsumer)
+		go qm.consumeMessage(ctx, errorChannel, pConsumer)
 		go func(pCtx context.Context, pConsumer sarama.PartitionConsumer) {
 			<-pCtx.Done()
 			log.Infof("Context Done with Error: %s. "+
@@ -202,28 +202,25 @@ func (qm *QueueMonitor) GetBrokerOffsets() error {
 // consumeMessage : Subscribes to the Message channel of the partition consumer
 // parses the received messages and store it in the offset store. If the
 // DueForRemoval flag is set, then the Consumer Group is marked for deletion.
-func (qm *QueueMonitor) consumeMessage(ec chan error, pConsumer sarama.PartitionConsumer) {
-	defer func() {
-		defer func() {
-			if rc := recover(); rc != nil {
-				log.Debugln("Recovered from write to closed Error Channel.")
+func (qm *QueueMonitor) consumeMessage(ctx context.Context, ec chan error,
+	pConsumer sarama.PartitionConsumer) {
+	for {
+		select {
+		case message := <-pConsumer.Messages():
+			partitionOffset, err := ParseConsumerMessage(message)
+			if err != nil {
+				log.Errorln("Error while parsing consumer message:", err)
+				continue
 			}
-		}()
-		ec <- fmt.Errorf("Message Channel Closed")
-	}()
-	messageChannel := pConsumer.Messages()
-	for message := range messageChannel {
-		partitionOffset, err := ParseConsumerMessage(message)
-		if err != nil {
-			log.Errorln("Error while parsing consumer message:", err)
-			continue
-		}
-		if partitionOffset != nil {
-			if partitionOffset.DueForRemoval {
-				qm.removeConsumerGroup(partitionOffset)
-			} else {
-				qm.storeConsumerOffset(partitionOffset)
+			if partitionOffset != nil {
+				if partitionOffset.DueForRemoval {
+					qm.removeConsumerGroup(partitionOffset)
+				} else {
+					qm.storeConsumerOffset(partitionOffset)
+				}
 			}
+		case <-ctx.Done():
+			ec <- fmt.Errorf("Message Channel Closed")
 		}
 	}
 }
