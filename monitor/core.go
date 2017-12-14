@@ -29,14 +29,13 @@ func Retry(cfg *QMConfig, title string, fn func() error) {
 	}
 }
 
-// RetryWithChannel : It retries the func passed an argument
-// based on the whether the the fn returns an error or the
-// Error channel receives an error or not.
-func RetryWithChannel(cfg *QMConfig, title string, fn func(ctx context.Context,
-	ec chan error) error) {
-	handleError := func(cancel func(), fromChannel bool, err error) {
-		if fromChannel {
-			log.Errorln("Retrying due to a error received from channel:", title)
+// RetryWithContext : It retries the func passed an argument
+// based on the Go's context construct.
+func RetryWithContext(cfg *QMConfig, title string,
+	fn func(pCtx context.Context) (context.Context, error)) {
+	handleError := func(cancel func(), fromContext bool) {
+		if fromContext {
+			log.Errorln("Retrying due to a error received from context:", title)
 		} else {
 			log.Errorln("Retrying due to a error returned by fn:", title)
 		}
@@ -45,23 +44,18 @@ func RetryWithChannel(cfg *QMConfig, title string, fn func(ctx context.Context,
 	}
 
 	for {
-		errorChannel := make(chan error)
-		defer close(errorChannel)
+		pCtx, pCancel := context.WithCancel(context.Background())
+		defer pCancel()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		err := fn(ctx, errorChannel)
+		cCtx, err := fn(pCtx)
 		if err != nil {
-			handleError(cancel, false, err)
-			close(errorChannel)
+			handleError(pCancel, false)
 			continue
 		}
 
-		err = <-errorChannel
-		if err != nil {
-			handleError(cancel, true, err)
-			close(errorChannel)
+		if cCtx != nil {
+			<-cCtx.Done()
+			handleError(pCancel, true)
 			continue
 		}
 
@@ -80,10 +74,10 @@ func Start(cfg *QMConfig) {
 	}
 
 	go func() {
-		RetryWithChannel(cfg, "CONSUMER_OFFSETS", func(ctx context.Context,
-			ec chan error) error {
-			return qm.GetConsumerOffsets(ctx, ec)
-		})
+		RetryWithContext(cfg, "CONSUMER_OFFSETS",
+			func(pCtx context.Context) (context.Context, error) {
+				return qm.GetConsumerOffsets(pCtx)
+			})
 	}()
 
 	for {
@@ -124,20 +118,26 @@ func NewQueueMonitor(cfg *QMConfig) (*QueueMonitor, error) {
 
 // GetConsumerOffsets : Subcribes to Offset Topic and parses messages to
 // obtains Consumer Offsets.
-func (qm *QueueMonitor) GetConsumerOffsets(ctx context.Context,
-	errorChannel chan error) error {
+func (qm *QueueMonitor) GetConsumerOffsets(pCtx context.Context) (
+	cCtx context.Context, err error) {
 
+	cCtx, cCancel := context.WithCancel(context.Background())
+	defer func() {
+		if err != nil {
+			cCancel()
+		}
+	}()
 	log.Infoln("Started getting consumer partition offsets.")
 
 	partitions, err := qm.Client.Partitions(ConsumerOffsetTopic)
 	if err != nil {
 		log.Errorln("Error occured while getting client partitions.", err)
-		return err
+		return cCtx, err
 	}
 	consumer, err := sarama.NewConsumerFromClient(qm.Client)
 	if err != nil {
 		log.Errorln("Error occured while creating new client consumer.", err)
-		return err
+		return cCtx, err
 	}
 
 	pConsumers := make([]sarama.PartitionConsumer, len(partitions))
@@ -147,24 +147,16 @@ func (qm *QueueMonitor) GetConsumerOffsets(ctx context.Context,
 			partition, sarama.OffsetNewest)
 		if err != nil {
 			log.Errorln("Error occured while creating Consumer Partition.", err)
-			return err
+			return cCtx, err
 		}
 		pConsumers[index] = pConsumer
 	}
 
 	for _, pConsumer := range pConsumers {
-		go qm.consumeMessage(errorChannel, pConsumer)
-		go func(pCtx context.Context, pConsumer sarama.PartitionConsumer) {
-			<-pCtx.Done()
-			log.Infof("Context Done with Error: %s. "+
-				"Closing this Partition Consumer.", pCtx.Err().Error())
-			err := pConsumer.Close()
-			if err != nil {
-				log.Errorf("Error while closing consumer: %s", err.Error())
-			}
-		}(ctx, pConsumer)
+		go qm.consumeMessage(pConsumer, cCancel)
+		go closeConsumer(pCtx, pConsumer)
 	}
-	return nil
+	return cCtx, nil
 }
 
 // GetBrokerOffsets : Finds out the leader brokers for the partitions and
@@ -207,16 +199,9 @@ func (qm *QueueMonitor) GetBrokerOffsets() error {
 // consumeMessage : Subscribes to the Message channel of the partition consumer
 // parses the received messages and store it in the offset store. If the
 // DueForRemoval flag is set, then the Consumer Group is marked for deletion.
-func (qm *QueueMonitor) consumeMessage(ec chan error,
-	pConsumer sarama.PartitionConsumer) {
-	defer func() {
-		_, open := <-ec
-		if open {
-			ec <- fmt.Errorf("Message Channel Closed")
-		} else {
-			log.Debugln("Error channel is closed.")
-		}
-	}()
+func (qm *QueueMonitor) consumeMessage(pConsumer sarama.PartitionConsumer,
+	cCancel func()) {
+	defer cCancel()
 	for message := range pConsumer.Messages() {
 		partitionOffset, err := ParseConsumerMessage(message)
 		if err != nil {
@@ -256,6 +241,17 @@ func (qm *QueueMonitor) sendBrokerOffsets(request *BrokerOffsetRequest) error {
 		}
 	}
 	return nil
+}
+
+// Closes the specified Partition Consumer when the context is done.
+func closeConsumer(ctx context.Context, pConsumer sarama.PartitionConsumer) {
+	<-ctx.Done()
+	log.Infof("Context Done: %s. Closing this Partition Consumer.",
+		ctx.Err().Error())
+	err := pConsumer.Close()
+	if err != nil {
+		log.Errorf("Error while closing consumer: %s", err.Error())
+	}
 }
 
 // Fetches topics and their corresponding partitions.
